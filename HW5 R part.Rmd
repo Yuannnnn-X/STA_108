@@ -1,0 +1,322 @@
+---
+title: 'STA 108 Homework 5: R Part'
+author: "Yuan Xie"
+date: "2025-05-10"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,eval = TRUE)
+```
+
+## Import Environment and Dataset
+
+```{r}
+# import the tidyverse environment
+library(tidyverse)
+library(MASS)
+library(car)
+library(rcompanion)
+# import the csv files with read_csv()
+alcohol = read_csv("alcohol.csv")
+salary3 = read_csv("salary3.csv")
+# briefly know the structures of the csv file by head()
+alcohol %>% head()
+salary3 %>% head()
+```
+
+---
+
+## I
+### (a)
+```{r}
+# construct the linear model
+model_alcohol <- lm(BAC ~ BrAC, data = alcohol)
+
+# try the value of lambda between -2 and 2 every 0.1 unit
+boxcox_result <- boxcox(model_alcohol, lambda = seq(-2, 2, 0.1))
+# find the value of lambda which maximizes the log-likelihood
+best_lambda <- boxcox_result$x[which.max(boxcox_result$y)]
+best_lambda
+
+if (best_lambda == 0) {
+  alcohol <- alcohol %>% mutate(BAC_trans = log(BAC))
+} else {
+  alcohol <- alcohol %>% mutate(BAC_trans = (BAC^best_lambda - 1) / best_lambda)
+}
+
+# plot the graph
+alcohol %>% ggplot(aes(x = BrAC, y = BAC_trans)) +
+  geom_point() +
+  labs(title = paste("Transformed BAC (lambda =", round(best_lambda, 3), ") vs. BrAC"),
+       x = "BrAC (mg/L/hour)",
+       y = "Transformed BAC")
+```
+**Interpretation:** The value of $\lambda$ is -0.6666667. The scatter plot of the transformed Y vs. X is shown above.
+
+### (b)
+**Hypotheses:** $H_0:$ The residuals have a constant variance. VS. $H_A:$ The residuals do not have a constant variance.
+```{r}
+alcohol_divide <- alcohol %>%
+  mutate(BrAC_group = ntile(BrAC, 4))  # cut into 4 groups
+
+model_trans <- lm(BAC_trans ~ BrAC, data = alcohol_divide)
+# use Brown-Forsythe test
+the.BFtest <- leveneTest(residuals(model_trans) ~ factor(BrAC_group), data = alcohol_divide, center = median)
+the.BFtest
+```
+**Interpretation:** The p-value of the Brown-Forsythe is 0.7644, which is much greater than $\alpha = 0.05$. We fail to reject $H_0$. The residuals are considered to have a constant variance.
+
+### (c)
+```{r}
+# do the tukey transform
+alcohol_tukey <- alcohol %>%
+  mutate(
+    BrAC_tukey = transformTukey(BrAC, plotit = FALSE),
+    BAC_tukey  = transformTukey(BAC, plotit = FALSE)
+  )
+
+# plot the graph
+alcohol_tukey %>% ggplot(aes(x = BrAC_tukey, y = BAC_tukey)) +
+  geom_point() +
+  labs(title = "Scatter Plot of Tukey-Transformed BrAC vs BAC",
+       x = "Tukey Transformed BrAC",
+       y = "Tukey Transformed BAC")
+```
+**Interpretation:** Both X and Y are transformed using the Tukey method. The scatter plot of the transformed X and Y is shown above.
+
+### (d)
+**Hypotheses:** $H_0:$ The residuals are normally distributed. VS. $H_A:$ The residuals are not normally distributed.
+```{r}
+model_tukey <- lm(BAC_tukey ~ BrAC_tukey, data = alcohol_tukey)
+shapiro_result <- shapiro.test(residuals(model_tukey))
+shapiro_result
+```
+**Interpretation:** The p-value of the Shapiro-Wilk normality test is 0.008138, which is much smaller than $\alpha = 0.05$. We reject $H_0$ and this means the residuals are not normally distributed.  
+  
+**Hypotheses:** $H_0:$ The residuals have a constant variance. VS. $H_A:$ The residuals do not have a constant variance.
+```{r}
+alcohol_tukey <- alcohol_tukey %>%
+  mutate(BrAC_group = ntile(BrAC_tukey, 4))
+
+# Brown-Forsythe Test
+bf_result <- leveneTest(residuals(model_tukey) ~ factor(BrAC_group), data = alcohol_tukey, center = median)
+bf_result
+```
+**Interpretation:** The p-value of the Brown-Forsythe test is 0.6956, which is much greater than $\alpha = 0.05$. We fail to reject $H_0$. The residuals are considered to have a constant variance.
+
+### (e)
+**We have not done the Shapiro-Wilk normality test for the Box-Cox case yet.**  
+**Hypotheses:** $H_0:$ The residuals are normally distributed. VS. $H_A:$ The residuals are not normally distributed.
+```{r}
+model_boxcox <- lm(BAC_trans ~ BrAC, data = alcohol)
+shapiro_boxcox <- shapiro.test(residuals(model_boxcox))
+shapiro_boxcox$p.value
+```
+**Interpretation:** The p-value of the Shapiro-Wilk normality test is 0.003336245, which is much smaller than $\alpha = 0.05$. We reject $H_0$ and this means the residuals are also not normally distributed for the Box-Cox case.  
+**Answer:** Neither model achieves normally distributed residuals according to the Shapiro–Wilk tests. Tukey transformation seems better because it transforms both variables symmetrically and results in better linearity in the scatter plot.
+
+---
+
+## II
+### (a)
+**Hypotheses:** $H_0: \beta_{4} = 0$  VS. $H_A:$ At least one $\beta_{4} \ne 0$
+```{r}
+# full model with rk
+model_salary3_full <- lm(sl ~ yd + dg + sx + rk, data = salary3)
+
+# Rrduced model without rk
+model_salary3_reduced_a <- lm(sl ~ yd + dg + sx, data = salary3)
+
+# compare models using general linear F-test
+anova_result <- anova(model_salary3_reduced_a, model_salary3_full)
+anova_result
+```
+**Interpretation:** $H_0: \beta_{4} = 0$  VS. $H_A:$ At least one $\beta_{4} \ne 0$. The value of $F_s$ is 19.395 and the corresponding p-value is 7.791e-07.
+
+### (b)
+**Answer:** The p-value is 7.791e-07, which is much smaller than $\alpha = 0.01$. Hence, we reject $H_0$ and conclude that at least one $\beta_{4} \ne 0$.
+
+### (c)
+**Hypotheses:** $H_0: \beta_{2} = \beta_{3} = 0$  VS. $H_A:$ At least one of $\beta_{2}$, $\beta_{3} \ne 0$
+```{r}
+# full model (still the same)
+model_salary3_full <- lm(sl ~ yd + dg + sx + rk, data = salary3)
+
+# reduced model without X2 = dg and X3 = sx
+model_salary3_reduced_c <- lm(sl ~ yd + rk, data = salary3)
+
+# general linear F-test
+anova_result_c <- anova(model_salary3_reduced_c, model_salary3_full)
+anova_result_c
+```
+**Interpretation:** $H_0: \beta_{2} = \beta_{3} = 0$  VS. $H_A:$ At least one of $\beta_{2}$, $\beta_{3} \ne 0$. The value of $F_s$ is 0.6869 and the corresponding p-value is 0.5082.
+
+### (d)
+**Answer:** The p-value is 0.5082, which is much bigger than $\alpha = 0.01$. Hence, we fail to reject $H_0$ and conclude that there is insufficient evidence to suggest that either $\beta_{2}$ or $\beta_{3}$ differs from zero.
+
+### (e)
+**Answer:** Based on my observations from (b) and (d), $$Y = \beta_0 + \beta_1 X_1 + \beta_{4,1} X_{4,1} + \beta_{4,2} X_{4,2} + \epsilon$$
+
+---
+
+## III
+### (a)
+```{r}
+# Reduced model: only X1 (yd)
+model_x1 <- lm(sl ~ yd, data = salary3)
+# Full model: X1 and X4 (yd and rk)
+model_x1_x4 <- lm(sl ~ yd + rk, data = salary3)
+
+SSE_x1 <- sum(residuals(model_x1)^2)
+SSE_x1_x4 <- sum(residuals(model_x1_x4)^2)
+reduction <- (SSE_x1 - SSE_x1_x4)/SSE_x1
+reduction
+```
+**Interpretation:** The additional reduction in error we expect to see is 0.5724403.
+
+### (b)
+```{r}
+model_x4 <- lm(sl ~ rk, data = salary3)
+
+# calculate SSE with only x4
+SSE_x4 <- sum(residuals(model_x4)^2)
+
+# partial R^2 of X1 given X4
+R2_partial <- (SSE_x4 - SSE_x1_x4) / SSE_x4
+R2_partial
+```
+**Interpretation:** $R^2(X_1 \mid X_4) = 0.05276751$. It means that in addition to the variation explained by "rk", the variable "yd" (years since degree) explains an additional 5.28% of the variation in salary.
+
+### (c)
+```{r}
+# reduced model with only X1 and X4
+model_x1_x4 <- lm(sl ~ yd + rk, data = salary3)
+# Full model: all the four predictors
+model_x1_x2_x3_x4 <- lm(sl ~ yd + dg + sx + rk, data = salary3)
+
+# calculate SSE
+SSE_x1_x4 <- sum(residuals(model_x1_x4)^2)
+SSE_full <- sum(residuals(model_x1_x2_x3_x4)^2)
+
+# Reduction in SSE
+reduction_c <- (SSE_x1_x4 - SSE_full)/SSE_x1_x4
+reduction_c
+```
+**Interpretation:** The additional reduction in error we expect to see is 0.02900112.
+
+### (d)
+```{r}
+model_x2_x3 <- lm(sl ~ dg + sx, data = salary3)
+
+# full model SSE has been calculated before
+# SSE_x2_x3
+SSE_x2_x3 <- sum(residuals(model_x2_x3)^2)
+
+# partial R^2
+R2_partial_d <- (SSE_x2_x3 - SSE_full) / SSE_x2_x3
+R2_partial_d
+```
+**Interpretation:** $R^2(X_1, X_4 \mid X_2, X_3) = 0.7578261$. It means that in addition to the variation explained by "dg" and "sx", the variables "yd" and "rk" explain an additional 75.78% of the variation in salary.
+
+### (e)
+**Answer:** The results from Problem III agree with the best model selected in II(e). We found that "yd" and "rk" explain an additional 75.78% of the variation in salary. The two predictors are far beyond the explanatory power of the other two. This is consistent with the model $Y = \beta_0 + \beta_1 X_1 + \beta_{4,1} X_{4,1} + \beta_{4,2} X_{4,2} + \epsilon$ where only "yd" and "rk" are included as predictors.
+
+---
+
+## IV
+### (a)
+```{r}
+model.formulas <- c(
+  "sl ~ yd", 
+  "sl ~ dg", 
+  "sl ~ sx", 
+  "sl ~ rk", 
+  "sl ~ yd + dg", 
+  "sl ~ yd + sx", 
+  "sl ~ yd + rk", 
+  "sl ~ yd + dg + rk",
+  "sl ~ yd + sx + rk", 
+  "sl ~ yd + dg + sx", 
+  "sl ~ yd + dg + sx + rk"
+)
+
+PRESS <- function(model) {
+  e <- resid(model)
+  h <- hatvalues(model)
+  sum((e / (1 - h))^2)
+}
+
+# All.Criteria from the handout
+All.Criteria <- function(the.model) {
+  p = length(the.model$coefficients)
+  n = length(the.model$residuals)
+  the.LL = logLik(the.model)
+  the.BIC = -2 * the.LL + log(n) * p
+  the.AIC = -2 * the.LL + 2 * p
+  the.PRESS = PRESS(the.model)
+  the.R2adj = summary(the.model)$adj.r.squared
+  the.results = c(LL = the.LL, p = p, n = n, AIC = the.AIC, BIC = the.BIC,
+                  PRESS = the.PRESS, R2adj = the.R2adj)
+  return(the.results)
+}
+
+# apply All.Criteria to all models
+criteria.results <- lapply(model.formulas, function(f) {
+  model <- lm(as.formula(f), data = salary3)
+  All.Criteria(model)
+})
+
+# combine results into a data frame
+criteria.df <- as.data.frame(do.call(rbind, criteria.results))
+rownames(criteria.df) <- model.formulas
+
+# display results
+criteria.df
+```
+**Interpretation:** The model fit critera are listed above.
+
+### (b)
+```{r}
+# the smaller, the better
+criteria.df %>% arrange(BIC) %>% dplyr::select(BIC)
+```
+**Answer:** According to BIC, sl ~ rk is the best model.
+
+### (c)
+```{r}
+# the smaller, the better
+criteria.df %>% arrange(AIC) %>% dplyr::select(AIC)
+```
+**Answer:** According to AIC, sl ~ yd + rk is the best model.
+
+### (d)
+```{r}
+# the smaller, the better
+criteria.df %>% arrange(PRESS) %>% dplyr::select(PRESS)
+```
+**Answer:** According to PRESS, sl ~ yd + rk is the best model.
+
+### (e)
+```{r}
+# the bigger, the better
+criteria.df %>% arrange(desc(R2adj)) %>% dplyr::select(R2adj)
+```
+**Answer:** According to $R^2_{\text{adj}}$, sl ~ yd + sx + rk is the best model.
+
+### (f)
+**Answer:** The models sl ~ yd + rk and sl ~ yd + sx + rk are chosen. PRESS and $R^2_{\text{adj}}$ are used for "prediction" models. sl ~ yd + rk has the smallest PRESS while sl ~ yd + sx + rk has the largest $R^2_{\text{adj}}$. They balances goodness of fit and model complexity well. They reduce the risk of overfitting by excluding unnecessary predictors.
+
+### (g)
+**Answer:** The model sl ~ rk is chosen because it has the smallest BIC. BIC tends to pick "correct" models.
+
+
+
+
+
+
+
+
+
+
+

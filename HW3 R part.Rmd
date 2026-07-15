@@ -1,0 +1,317 @@
+---
+title: 'STA 108 Homework 3: R Part'
+author: "Yuan Xie"
+date: "2025-04-28"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,eval = TRUE)
+```
+
+## Import Environment and Dataset
+
+```{r}
+# import the tidyverse environment
+library(tidyverse)
+# import the csv files with read_csv()
+alcohol = read_csv("alcohol.csv")
+salary = read_csv("salary.csv")
+# briefly know the structures of the csv file by head()
+head(alcohol)
+head(salary)
+```
+
+---
+
+## I
+### (a)
+```{r}
+# Scatterplot of BrAC vs BAC
+alcohol %>%
+  ggplot(aes(x = BrAC, y = BAC)) +
+  # set the degree of transparency as 0.7
+  geom_point(alpha = 0.7) +
+  # set the title, x-axis and y-axis
+  labs(
+    title = "Scatterplot of BrAC vs BAC",
+    x = "BrAC (mg/L/hour)",
+    y = "BAC (g/L/hour)"
+  )
+
+# construct the linear model of BAC ~ BrAC
+model_alcohol <- lm(BAC ~ BrAC, data = alcohol)
+# standardize all these data points
+standardized_residuals <- rstandard(model_alcohol)
+# find the data points which are 2 standard deviations outside.
+outlier_rows <- which(abs(standardized_residuals) > 2)
+# show the row numbers
+outlier_rows
+# and show the actual rows
+alcohol[outlier_rows, ]
+```
+**Interpretation:** The 11th, 46th and 56th-row observations are considered outliers because they are 2 standard deviations beyond the estimated value.
+
+### (b)
+```{r}
+# get the residuals of the dataset
+raw_residuals <- residuals(model_alcohol)
+
+# draw the QQ plot
+qqnorm(raw_residuals)
+qqline(raw_residuals, col = "red", lwd = 3)
+```
+**Interpretation:** The QQ plot shows that most of the estimated errors fall close to the theoretical normal line. This means that the errors are approximately normally distributed. There are several deviations in the upper tail, but they are not severe enough to cause strong doubt on the normality assumption.
+
+### (c)
+```{r}
+# calculate the residuals of these data points
+residuals_alcohol <- residuals(model_alcohol)
+
+# draw the residual plot
+alcohol %>%
+  # add a column of residuals to the original tibble
+  mutate(resid = residuals_alcohol) %>%
+  ggplot(aes(x = BrAC, y = resid)) +
+  # plot the points and set the degree of transparency as 0.7
+  geom_point(alpha = 0.7) +
+  # add the base line
+  geom_hline(yintercept = 0, color = "red", linewidth = 1) +
+  # set the title, x-axis and y-axis
+  labs(
+    title = "Residual Plot: BrAC vs Estimated Errors",
+    x = "BrAC (mg/L/hour)",
+    y = "Estimated Errors (Residuals)"
+  )
+```
+**Interpretation:** No, the residual plot shows a slight funnel shape where the spread of residuals increases as BrAC increases here. This suggests that the assumption of constant variance may be violated.
+
+### (d)
+```{r}
+# calculate the residuals of these data points
+residuals_alcohol <- residuals(model_alcohol)
+
+# draw the histogram
+tibble(resid = residuals_alcohol) %>%
+  ggplot(aes(x = resid)) +
+  # draw the histogram
+  geom_histogram(bins = 15, fill = "steelblue", color = "white", alpha = 0.8) +
+  # set the title, x-axis and y-axis
+  labs(
+    title = "Histogram of Estimated Errors",
+    x = "Residuals",
+    y = "Frequency"
+  )
+```
+**Interpretation:** The histogram looks roughly normal, but it is slightly skewed to the right. The residuals are not perfectly normally distributed.
+
+### (e)
+**Answer:** The QQ plot shows that most points lie along the normal line, but there are a few deviations in the upper tail. The histogram of residuals looks approximately bell-shaped, but a little bit right-skewed. Hence, the normality assumption is mostly reasonable, but not perfect. However, the residual plot shows a clear funnel shape, indicating that the constant variance assumption is violated.
+
+---
+
+## II
+### (a)
+**Hypothesis:** $H_0:$ The residuals are normally distributed. VS. $H_A:$ The residuals are not normally distributed.
+```{r}
+residuals_alcohol <- residuals(model_alcohol)
+# conduct the Shapiro-Wilks test
+shapiro.test(residuals_alcohol)
+```
+**Interpretation:** The p-value of the Shapiro-Wilks test is 0.02666.
+
+### (b)
+**Answer:** Since p-value = 0.02666 and it is smaller than $\alpha$ = 0.10, we reject $H_0$. There is statistically significant evidence showing that the residuals are not normally distributed.
+
+### (c)
+**Hypothesis:** $H_0:$ The residuals have equal variances across groups. VS. $H_A:$ At least one group of residuals has a different variance.
+```{r}
+# separate groups
+alcohol_with_resid <- alcohol %>%
+  mutate(resid = residuals(model_alcohol),
+         BrAC_group = cut(BrAC, breaks = 3, labels = c("Low", "Medium", "High")))
+
+# conduct the  Fligner-Killeen test
+fligner.test(resid ~ BrAC_group, data = alcohol_with_resid)
+```
+**Interpretation:** The p-value of the Fligner-Killeen test is 0.03861.
+
+### (d)
+**Answer:** Since p-value = 0.03861 and it is smaller than $\alpha$ = 0.10, we reject $H_0$. There is statistically significant evidence showing that at least one group of residuals has a different variance.
+
+### (e)
+**Answer:**  The assumptions of normality are not met. Both the $H_0$'s of the Shapiro-Wilks test and the Fligner-Killeen test are rejected. The residuals are not normally distributed and at least one group of residuals has a different variance.
+
+---
+
+## III
+### (a)
+**Hypothesis:** $H_0:$ $\beta_1 = 0$ VS. $H_A:$ $\beta_1 \ne 0$
+```{r}
+summary(model_alcohol)
+```
+**Interpretation:** The value of $F_s$ is 177.3.
+
+### (b)
+**Answer:** The p-value of the F test is smaller than 2.2e-16.
+
+### (c)
+**Answer:** Since the p-value is much smaller than any appropriate values of $\alpha$, we reject $H_0$. There is strong statistical evidence of a significant linear relationship between BrAC and BAC.
+
+### (d)
+**Answer:** It is not entirely trust-worthy. The F-test also relies on several assumptions of simple linear regression. More robust models should be use to check the reliability.
+
+### (e)
+```{r}
+summary(model_alcohol)
+```
+**Answer:** The coefficient of determination is 0.7567. This means 75.67% of the variation in BAC can be explained by the linear relationship. 0.7567 is relatively a high value. The linear regression model can substantially reduce the error in predicting BAC.
+
+---
+
+## IV
+### (a)
+```{r}
+# Scatterplot of sl vs yr
+salary %>%
+  ggplot(aes(x = yd, y = sl)) +
+  # set the degree of transparency as 0.7
+  geom_point(alpha = 0.7) +
+  # set the title, x-axis and y-axis
+  labs(
+    title = "Scatterplot of Years Since Degree vs Salary",
+    x = "Years Since Degree (yd)",
+    y = "Salary (sl)"
+  )
+
+# construct the linear model of sl ~ yd
+model_salary <- lm(sl ~ yd, data = salary)
+# standardize all these data points
+standardized_residuals <- rstandard(model_salary)
+# find the data points which are 2 standard deviations outside.
+outlier_rows <- which(abs(standardized_residuals) > 2)
+# show the row numbers
+outlier_rows
+# and show the actual rows
+salary[outlier_rows, ]
+```
+**Interpretation:** The 2nd, 22nd, 24th and 34th-row observations are considered outliers because they are 2 standard deviations beyond the estimated value.
+
+### (b)
+```{r}
+# get the residuals of the dataset
+residuals_salary <- residuals(model_salary)
+
+# draw the QQ plot
+qqnorm(residuals_salary)
+qqline(residuals_salary, col = "red", lwd = 3)
+```
+**Interpretation:** Most residuals lie roughly along the normal reference line, but there is some apparent deviation in the tails, especially on the upper end. This suggests that the residuals may not be perfectly normally distributed, and the normality assumption may be violated to some extent.
+
+### (c)
+```{r}
+# calculate the residuals of these data points
+residuals_salary <- residuals(model_salary)
+
+# draw the residual plot
+salary %>%
+  # add a column of residuals to the original tibble
+  mutate(resid = residuals_salary) %>%
+  ggplot(aes(x = yd, y = resid)) +
+  # plot the points and set the degree of transparency as 0.7
+  geom_point(alpha = 0.7) +
+  # add the base line
+  geom_hline(yintercept = 0, color = "red", linewidth = 1) +
+  # set the title, x-axis and y-axis
+  labs(
+    title = "Residual Plot: Years Since Degree vs Residuals",
+    x = "Years Since Degree (yd)",
+    y = "Estimated Errors (Residuals)"
+  )
+```
+**Interpretation:** The residual plot does not show the constant variance. It shows increasing spread as the number of years since the degree (yd) increases, forming a funnel shape. The variance of the errors increases with experience.
+
+### (d)
+```{r}
+# calculate the residuals of these data points
+residuals_salary <- residuals(model_salary)
+
+# draw the histogram
+tibble(resid = residuals_salary) %>%
+  ggplot(aes(x = resid)) +
+  # draw the histogram
+  # set the title, x-axis and y-axis
+  geom_histogram(bins = 15, fill = "steelblue", color = "white", alpha = 0.8) +
+  labs(
+    title = "Histogram of Estimated Errors",
+    x = "Residuals",
+    y = "Frequency"
+  )
+```
+**Interpretation:** The histogram of residuals is roughly symmetric and most values concentrate near zero, supporting the normality assumption.
+
+---
+
+## V
+### (a)
+**Hypothesis:** $H_0:$ The residuals are normally distributed. VS. $H_A:$ The residuals are not normally distributed.
+```{r}
+residuals_salary <- residuals(model_salary)
+# conduct the Shapiro-Wilks test
+shapiro.test(residuals_salary)
+```
+**Interpretation:** The p-value of the Shapiro-Wilks test is 0.9195. 
+
+### (b)
+**Answer:** Since p-value = 0.9195 and it is bigger than $\alpha$ = 0.01, we fail to reject $H_0$. This indicates strong evidence that the residuals are normally distributed
+
+### (c)
+**Hypothesis:** $H_0:$ The residuals have equal variances across groups. VS. $H_A:$ At least one group of residuals has a different variance.
+```{r}
+# separate groups
+salary_with_resid <- salary %>%
+  mutate(resid = residuals(model_salary),
+         yd_group = cut(yd, breaks = 3, labels = c("Low", "Medium", "High")))
+
+# conduct the  Fligner-Killeen test
+fligner.test(resid ~ yd_group, data = salary_with_resid)
+```
+**Interpretation:** The p-value of the Fligner-Killeen test is 0.00517.
+
+### (d)
+**Answer:** Since p-value = 0.00517 and it is smaller than $\alpha$ = 0.01, we reject $H_0$. There is statistically significant evidence showing that at least one group of residuals has a different variance.
+
+### (e)
+**Answer:** Yes. Although the residuals appear to be normally distributed, the variances are not constant. We can transform y to $y^2$, $\sqrt{y}$, and so on to reduce the heteroscedasticity.
+
+---
+
+## VI
+### (a)
+**Hypothesis:** $H_0:$ $\beta_1 = 0$ VS. $H_A:$ $\beta_1 \ne 0$
+```{r}
+summary(model_salary)
+```
+**Interpretation:** The value of $F_s$ is 41.82.
+
+### (b)
+**Answer:** The p-value of the F test is smaller than 4.102e-08.
+
+### (c)
+**Answer:** Since the p-value is much smaller than any appropriate values of $\alpha$, we reject $H_0$. There is strong statistical evidence of a significant linear relationship between years since degree and salary.
+
+### (d)
+**Answer:** 1. Outliers can distort the distribution of residuals, violating the normality assumption. 2. Outliers may inflate the variance in certain regions of the data, violating the constant variance assumption.
+
+### (e)
+```{r}
+summary(model_salary)
+```
+**Answer:** The coefficient of determination is 0.4554. This means 45.54% of the variation in salary can be explained by the linear relationship. 0.4554 is relatively a low value. The linear regression model cannot substantially reduce the error in predicting salary.
+
+
+
+
+
+
+

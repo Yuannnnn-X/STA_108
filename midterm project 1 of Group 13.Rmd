@@ -1,0 +1,302 @@
+---
+title: 'STA 108 Midterm Project 1 of Group 13'
+author: 
+  - "INSTRUCTORS: Maxime Guiffo Pouokam, Su I Iao, Sirapat Watakajaturaphon"
+  - "STUDENTS: Yuan Xie, Huayi Pan, Jordan Ng, Ava Chakalozian, Donglai Liu"
+date: "2025-04-25"
+output: 
+  pdf_document:
+    keep_tex: no
+    latex_engine: xelatex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,eval = TRUE) 
+# when knitting for submission, change eval = FALSE to TRUE, so codes can be evaluated and present results.
+```
+
+**Details**  
+Your report should be the following format:  
+i. Typed.  
+ii. A title page including your name/s, the name of the class, and the name of your instructor (me).  
+iii. Double-sided pages.  
+iv. An appendix of your R code used to produce the results. Do not include in R code in the body of your report. 
+  
+Feel free to make your cover page “unique” so that it is easy to find when I hand them back.  
+  
+**Notice:** your project will be graded as a group effort (if you have two people). This means that you are responsible for your own work, and your partner’s work. I will not assign two different grades to one project – **unless there was a conflict of interest.**  
+  
+**Important Note:** Let us know in the front page if there is a conflict of interest. For example, if a group member did not fully participate, let us know us in the front page of the project.
+
+**Grading Rubric**  
+I. (5 points) Introduction  
+II. (5 points) Summary of your data  
+III. (7 points) Diagnostics  
+IV. (7 points) Analysis  
+V. (9 points) Interpretation  
+VI. (6 points) Prediction Results  
+VII. (7 points) Conclusion  
+VIII. (5 points) formatting  
+
+\newpage
+
+```{r include = FALSE}
+# use tidyverse environment
+library(tidyverse)
+# KingCountys.csv -> KingCounty
+KingCounty <- read_csv("KingCounty.csv")
+# briefly know the structures of the csv file with head()
+head(KingCounty)
+```
+
+## I. Introduction. State the question you are trying to answer, why it is a question of interest (why might we be interested in the answer), and what approach you are going to take (just the name of the approach).
+
+**Answer:** We chose the KingCounty.csv file for our data analysis project, which contains 500 observations regarding square footage of a house and its price in dollars. We are going to analyze the relationship between the house price in dollars (price) and the square footage of the living space (sqft_living) and whether the price of a house can be accurately predicted based on its living area. The question we are trying to answer is, does the square footage of a house affect its price?
+
+This is a question of interest because homeowners and house buyers can use this model to predict the price of houses and decide whether they are affordable. They will be able to see if a house is priced fairly or if they are getting a worse/better deal compared to similar sized houses. We plan to approach this with a simple linear regression model to analyze the relationship, with the appropriate hypothesis tests.
+
+Also, some appropriate diagnostics methods (95% confidence intervals, $\alpha = 0.05$) will be applied to check whether it is a good model and whether the relationship is significant or not. We will be reporting the results from requested predictions using prediction intervals at $\alpha = 0.05$, such as the average price of a house with a specific square footage.
+
+---
+
+## II. Summary of your data (and only the data you are using for the question). This should include things like plots (histograms, boxplots) including the interpretation of the plots, and summary values such as sample means and standard deviations. You should have an idea about the trend of the data from this section.
+
+```{r echo = FALSE, fig.height = 4, fig.width = 6}
+# make a scatterplot of the data points without a best fit line
+KingCounty %>% ggplot(aes(x = sqft_living, y = price)) +
+  # set the degree of transparency as 0.7
+  geom_point(alpha = 0.5) +
+  # add the title and names of axes
+  labs(title = "Scatterplot of Price vs Square Footage", 
+       x = "Square Footage", 
+       y = "Price")
+```
+  
+**Interpretation:** This is a scatterplot which shows the relationship between price and square footage. Although there is no best fit line, we can still roughly observe that when the square footage increases, the price will also increase.
+
+```{r echo = FALSE, fig.height = 4, fig.width = 6}
+# make a histogram of house prices
+KingCounty %>% ggplot(aes(x = price)) +
+  # set the bins of the histogram
+  geom_histogram(bins = 30) +
+  labs(title = "Histogram of House Prices", 
+       x = "Price", 
+       y = "Count")
+```
+  
+**Interpretation:** The histogram of house prices shows that the distribution of house prices is right-skewed. Most houses are priced under $1,000,000 while there are a few houses that are extremely expensive. Those extremely expensive houses make the distribution right-skewed.
+
+```{r echo = FALSE, fig.height = 4, fig.width = 6}
+# make a histogram of Square Footage
+KingCounty %>% ggplot(aes(x = sqft_living)) +
+  # set the bins of the histogram
+  geom_histogram(bins = 30) +
+  labs(title = "Histogram of Square Footage", 
+       x = "Square Footage", 
+       y = "Count")
+```
+  
+**Interpretation:** The histogram of square footage also shows that the distribution is right-skewed. However, it is not as extreme as that of house prices. Most houses have a living area between 1,000 and 3,000 square feet. A few super large houses have a living area of over 5,000 square feet.
+
+```{r echo = FALSE, fig.height = 4, fig.width = 6}
+# make a boxplot of house prices
+KingCounty %>% ggplot(aes(y = price)) +
+  geom_boxplot() +
+  labs(title = "Boxplot of House Prices", 
+       y = "Price")
+```
+  
+**Interpretation:** The boxplot of house prices shows that there are several high outliers that are far above the upper whisker, confirming the right-skewed distribution observed in the histogram. The interquartile range is concentrated at relatively lower price levels.
+
+```{r echo = FALSE, fig.height = 4, fig.width = 6}
+# make a boxplot of Square Footage
+KingCounty %>% ggplot(aes(y = sqft_living)) +
+  geom_boxplot() +
+  labs(title = "Boxplot of Square Footage", 
+       y = "Square Footage")
+```
+  
+**Interpretation:** Similarly, the boxplot of square footage also reveals some very large homes that act as outliers. The majority of homes fall within a relatively narrow range of square footage values.
+
+```{r echo = FALSE}
+# summarize the mean and standard deviation here
+table <- KingCounty %>%
+  summarise(
+    mean_price = mean(price, na.rm = TRUE),
+    sd_price = sd(price, na.rm = TRUE),
+    mean_sqft = mean(sqft_living, na.rm = TRUE),
+    sd_sqft = sd(sqft_living, na.rm = TRUE)
+  )
+knitr::kable(table, digits = 3, caption = "Summary Statistics of Price and Square Footage")
+```
+  
+**Interpretation:** The mean house price is 566594.3 dollars and its standard deviation is 434558.6 dollars. As for square footage, its mean is 2115.058 square feet and its standard deviation is 976.9711	square feet. Based on the graphs, we can expect that there is a positive relationship between house prices and square footage. As the size of the house increases, the sale price tends to increase as well.
+
+---
+
+## III. Diagnostics. You should discuss your assumptions here, and if you believe they are violated. Perform diagnostics for the model. If you believe assumptions are violated, note this and continue with the project.
+  
+**The function of the linear model:** $$y = \beta_0 + \beta_1 x + \epsilon$$  
+**Assumptions of the model:** 1. The (x, y) pairs of observations are independent. 2. The errors are independent. 3. The errors are normally distributed. 4. The errors have constant variance [$\varepsilon \sim N(0, \sigma^2)$].  
+  
+**Formulae:** $$estimated\ slope: b_1 = \frac{\sum (x_i - \bar{x})(y_i - \bar{y})}{\sum (x_i - \bar{x})^2}$$ $$estimated\ intercept: b_0 = \bar{y} - b_1 \bar{x}$$ $$slope\ confidence\ interval: b_1 \pm t \times SE(b_1)$$ $$intercept\ confidence\ interval: b_0 \pm t \times SE(b_0)$$ $$intercept\ standard\ error: SE(b_1) = \sqrt{ \frac{ \hat{\sigma}^2 }{ \sum (x_i - \bar{x})^2 } }$$ $$slope\ standard\ error: SE(b_0) = \sqrt{ \hat{\sigma}^2 \left( \frac{1}{n} + \frac{\bar{x}^2}{\sum (x_i - \bar{x})^2} \right) }$$
+
+```{r echo = FALSE, fig.height = 4, fig.width = 6}
+# create the linear regression model and summary()
+lm_KC = KingCounty %>% lm(price ~ sqft_living, data = .)
+table_keep <- summary(lm_KC)$coefficients
+knitr::kable(table_keep, digits = 3, caption = "Summary Statistics of Original Intercept and Slope")
+
+# make a scatterplot of the data points without a best fit line
+KingCounty %>% ggplot(aes(x = sqft_living, y = price)) +
+  # set the degree of transparency as 0.7
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", formula = 'y ~ x', se = FALSE, color = "red") +
+  # add the title and names of axes
+  labs(title = "Scatterplot of Price vs Square Footage with a Best Fit Line", 
+       x = "Square Footage", 
+       y = "Price")
+```
+  
+**Interpretation:** The function of the model is not a part of the summary. We have made a linear regression model here. The estimated function of the line is y = -120325.52 + 324.78 * x. The standard error of the intercept is 31724.19 and that of the slope is 13.62. The best fit line is added to the scatterplot.
+  
+**Outlier detection:**
+```{r echo = FALSE}
+# detect possible outliers
+# compute studentized residuals
+rij <- rstudent(lm_KC)
+# set significance level and find t-distribution cutoff (same as what we learned in lecture)
+alpha <- 0.05
+n <- nrow(KingCounty)  # number of observations
+t_cutoff <- qt(1 - alpha/2, n - 2)  # two-sided critical value
+# identify outliers
+outlier_indices <- which(abs(rij) > t_cutoff)
+# display outlier indices and corresponding data
+outlier_indices
+KingCounty[outlier_indices, ]
+# Create a new dataset with outliers removed
+KingCounty_clean <- KingCounty[-outlier_indices, ]
+```
+**Interpretation:** Here are some detected outliers and they will be removed.
+  
+```{r echo = FALSE}
+# make a new linear model with the data without outliers
+lm_KC_clean <- KingCounty_clean %>%
+  lm(price ~ sqft_living, data = .)
+table_removed <- summary(lm_KC_clean)$coefficients
+knitr::kable(table_removed, digits = 3, caption = "Summary Statistics of New Intercept and Slope")
+```
+**Interpretation:** The new linear model function without outliers now is y = 62853.841 + 223.872 * x
+
+```{r echo = FALSE, fig.height = 4, fig.width = 6}
+# make a new linear model with the data without outliers
+lm_KC_clean <- KingCounty_clean %>%
+  lm(price ~ sqft_living, data = .)
+
+# draw the residual plot
+ggplot(data = data.frame(
+    fitted = fitted(lm_KC_clean),
+    residuals = resid(lm_KC_clean)), aes(x = fitted, y = residuals)) +
+  geom_point(alpha = 0.5) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(
+    title = "Residual Plot after Removing Outliers",
+    x = "Fitted Values",
+    y = "Residuals"
+  )
+```
+  
+**Interpretation:** This is the residual plot of the dataset without outliers. Visually, the variance of error does not look the same because the points in the residual plot form a funnel-shaped diagram. They are more and more separated.
+  
+```{r echo = FALSE, fig.height = 4, fig.width = 6}
+# Create a Q-Q plot for the residuals
+qqnorm(resid(lm_KC_clean))
+qqline(resid(lm_KC_clean), col = "red", lwd = 3)
+```
+  
+**Interpretation:** This is the Q-Q plot of the residuals. The normal Q-Q plot shows that the residuals largely follow a straight line, indicating that the normality assumption is roughly satisfied. Some slight deviations are observed at the two ends, but they are not severe enough.
+  
+**Shapiro-Wilks Test:** H0: The residuals are normally distributed. VS. H1: The residuals are not normally distributed.
+```{r echo = FALSE}
+# Perform Shapiro-Wilk normality test on residuals
+shapiro.test(resid(lm_KC_clean))
+```
+**Interpretation:** The Shapiro-Wilk normality test shows that the p-value = 4.394e-08 which is smaller than $\alpha = 0.05$. We reject H0 here and this means the residuals are not normally distributed.
+  
+**Fligner-Killeen Test:** H0: The groups are homoscedastic. VS. H1: The groups are heteroscedastic.
+```{r echo = FALSE}
+fitted_values <- fitted(lm_KC_clean)
+groups <- cut(fitted_values, breaks = 4)
+fligner.test(resid(lm_KC_clean) ~ groups)
+```
+**Interpretation:** The Fligner-Killeen Test shows that the p-value = 0.0009584 which is smaller than $\alpha = 0.05$. We reject H0 here and this means the presence of heteroscedasticity in the residuals.
+
+**Brown-Forsythe Test:** H0: The groups are homoscedastic. VS. H1: The groups are heteroscedastic.
+```{r echo = FALSE}
+suppressPackageStartupMessages(library(car))
+# make the groups meaningful
+fitted_values <- fitted(lm_KC_clean)
+groups <- cut(fitted_values, breaks = 4)
+# Brown-Forsythe test: use median as center
+leveneTest(resid(lm_KC_clean) ~ groups, center = median)
+```
+**Interpretation:** The Brown-Forsythe Test shows that the p-value = 0.0002165 which is smaller than $\alpha = 0.05$. We reject H0 here and this means the presence of heteroscedasticity in the residuals.
+
+---
+
+## IV. Analysis. Report back the model fit, confidence intervals, test-statistics, and p-values, nulls and alternatives, etc. You may use tables here, but be sure that you organize your work. Remember to write your results in full sentences where possible.
+
+**Confidence interval:**
+```{r echo = FALSE}
+CI <- confint(lm_KC_clean, level = 0.95)
+knitr::kable(CI, digits = 3, caption = "Confidence Intervals of New Intercept and Slope")
+```
+  
+**Test-statistics:** H0: $\beta_1$ = 0 VS. H1: $\beta_1 \neq$ 0
+```{r echo = FALSE}
+table_clean <- summary(lm_KC_clean)$coefficients
+knitr::kable(table_clean, digits = 3, caption = "Summary Statistics of New Intercept and Slope")
+```
+**Interpretation:** Our linear model based on the data without outliers is y = 62853.841 + 223.872 * x. The 95% confidence interval of the intercept is (19845.8037, 105861.8776). This means we are 95% confident that when the square footage is 0, the expected price is between 19845.8037 and 105861.8776. However, it is not practical and it should be outside the appropriate range of the data. The 95% confidence interval of the slope is (204.3542, 243.3905). This means we are 95% confident that when the square footage of a house increases by one unit, the price is expected to increase by between 204.3542 and 243.3905 dollars. The test-statistics of the slope is 2.871618 while the P-value of it is 4.264388e-03. Since the P-value is smaller than $\alpha = 0.05$, we reject H0 and we can conclude that there is a significant positive relationship between prices and square footage.
+
+---
+
+## V. Interpretation. State your conclusion, and inference that you may draw from your corresponding tests or confidence intervals. These should all be in terms of your problem.
+
+**Answer:** Initially, the regression line function is y = -120325.52 + 324.78 * x. After we removed the outliers, the function of the estimated regression line is y = 62853.841 + 223.872 * x. Hence, there is a significant positive relationship between prices and square footage since both the lower and upper bounds of the slope confidence interval (204.3542, 243.3905) are positive. The 95% confidence interval of the intercept is (19845.8037, 105861.8776). However, it is still questionable whether the linear regression model is suitable because the null hypotheses of the Shapiro-Wilks test and the Fligner-Killeen test are both rejected. This means the residuals are not normally distributed, and there is a presence of heteroscedasticity in the residuals. The assumptions of the linear model have not been fully satisfied.
+
+---
+
+## VI. Prediction results. Here you will include your analysis about the requested predictions.
+
+**Formulae:** $$y\ confidence\ interval: \hat{y}_0 \pm t \times \sqrt{ \hat{\sigma}^2 \left( \frac{1}{n} + \frac{(x_0 - \bar{x})^2}{\sum (x_i - \bar{x})^2} \right) }$$ $$y\ prediction\ interval: \hat{y}_0 \pm t \times \sqrt{ \hat{\sigma}^2 \left( 1 + \frac{1}{n} + \frac{(x_0 - \bar{x})^2}{\sum (x_i - \bar{x})^2} \right) }$$
+
+```{r echo = FALSE}
+# make 3 tiny data frames
+newdata_2800 <- data.frame(sqft_living = 2800)
+newdata_3200 <- data.frame(sqft_living = 3200)
+newdata_8000 <- data.frame(sqft_living = 8000)
+
+# 1. Predict mean price for 2800 sqft (confidence interval)
+predict(lm_KC_clean, newdata = newdata_2800, interval = "confidence", level = 0.95)
+# 2. Predict individual price for 3200 sqft (prediction interval)
+predict(lm_KC_clean, newdata = newdata_3200, interval = "prediction", level = 0.95)
+# 3. Predict mean price for 8000 sqft (confidence interval)
+predict(lm_KC_clean, newdata = newdata_8000, interval = "confidence", level = 0.95)
+```
+**Interpretation:**  The average house price for houses with living square footage 2800 is 689696.4 dollars, with a 95% **confidence interval** of (667437.4, 711955.3). The price of a particular house with living square footage 3200 is expected to be 779245.3 dollars, with a 95% **prediction interval** of (415813.6, 1142677). The average house price for houses with living square footage 8000 is 1853832 dollars, with a 95% **confidence interval** of (1736239, 1971426).
+
+---
+
+## VII. Conclusion. Summarize briefly your findings. Here you do not have to re-iterate your numeric values, but summarize all relevant conclusions.
+
+**Answer:** In this data analysis project, we investigated the relationship between house prices and living areas (square footage) with a simple linear regression model. After removing potential outliers, the confidence interval revealed that there is a significant positive relationship between house prices and living areas. Houses with larger living areas tend to have higher prices. Although the model provides reasonable predictions within the range of the data, diagnostic tests indicated that some assumptions of the linear regression model were not satisfied. The residuals were not normally distributed, and heteroscedasticity was present. In a word, the model shows the general trend between square footage and house price, but there should be more suitable models, like quadratic or square root models.
+
+---
+ 
+## R Appendix
+
+```{r, ref.label=knitr::all_labels(), eval = F, echo = T}
+
+```
+

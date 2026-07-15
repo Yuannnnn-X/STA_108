@@ -1,0 +1,217 @@
+---
+title: 'STA 108 Homework 1: R Part'
+author: "Yuan Xie"
+date: "2025-04-05"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,eval = TRUE)
+```
+
+## Import Environment and Dataset
+
+```{r}
+# import the tidyverse environment
+library(tidyverse)
+# import the csv files with read_csv()
+lung <- read_csv("Lungs.csv")
+fitness <- read_csv("Fitness.csv")
+# briefly know the structures of the csv file by head()
+head(lung)
+head(fitness)
+```
+
+---
+
+## I
+### (a)
+```{r}
+# plot the scatter with the estimated regression line
+lung %>% ggplot(aes(x = age, y = FEV)) + 
+  # plot the points; set the degree of transparency, size and color
+  geom_point(alpha = 0.7, size = 2, color = "red") + 
+  # add the estimated regression line with a linear model
+  geom_smooth(method = "lm",formula = y ~ x, se = FALSE, color = "blue") +
+  # set the x-axis, y-axis and title
+  labs(
+    x = "children age (years)",
+    y = "Forced Exhalation Volume (liters)",
+    title = "Scatterplot of FEV vs Age with Regression Line"
+  )
+```
+
+### (b)
+**Answer:** Children's age is a discrete random variable and age can only be positive integers. Hence, the data points are vertically aligned for each age value in this scatter plot. Also, FEV has a positive linear relationship with children's age based on the positive line slope in the diagram.
+
+### (c)
+**Answer:** The variance of the data does not remain constant according to the diagram. When children's age is relatively small, these data points are more clustered. However, for children with bigger ages, the data points spread more widely. This shows that there is heteroscedasticity and the dataset's residual plot will show a funnel shape.
+
+### (d)
+```{r}
+# construct the linear regression model
+model_lung <- lm(FEV ~ age, data = lung)
+# show the coefficients of intercept and slope with coef()
+coef(model_lung)
+```
+**Answer:** The estimated regression line: FEV = 0.4316481 + 0.2220410 * age.
+
+### (e)
+```{r}
+# construct the linear regression model
+model_lung <- lm(FEV ~ age, data = lung)
+# show all the important parameters with summary()
+summary(model_lung)
+```
+**Answer:** The value of $s_e$ is 0.5675.
+
+---
+
+## II
+### (a)
+```{r}
+# construct the linear regression model
+model_lung <- lm(FEV ~ age, data = lung)
+# show the difference between the two expected values and unname it
+unname(coef(model_lung)[2]) * (15 - 10)
+```
+**Answer:** The expected average difference  in FEV is 1.110205 liters.
+
+### (b)
+```{r}
+# construct the linear regression model
+model_lung <- lm(FEV ~ age, data = lung)
+# get the intercept, which is the first coefficient
+intercept_lung <- coef(model_lung)[1]
+# get the slope, which is the second coefficient
+slope_lung <- coef(model_lung)[2]
+# plug 8 into the function of the regression line
+FEV_8 <- intercept_lung + slope_lung * 8
+# unname it, so the result will only be a number
+unname(FEV_8)
+```
+**Answer:** The estimated FEV for a child aged 8 is 2.207976.
+
+### (c)
+```{r}
+lung %>% mutate(
+  # add two columns: the predicted_FEV and error
+    predicted_FEV = predict(model_lung),
+    error = abs(FEV - predicted_FEV)) %>%
+  # arrange the error in a descending order
+  arrange(desc(error)) %>%
+  # show the top 5 rows
+  head(5) %>%
+  # only keep the age and FEV columns
+  select(age, FEV)
+```
+**Answer:** The rows of the dataset which result in the highest absolute errors are shown in the tibble above.
+
+### (d)
+**Answer:** I agree. Assuming the linear regression model is well-fitted, the expected average error across many predictions will tend to be zero.
+
+---
+
+## III
+### (a)
+```{r}
+# plot the scatter with the estimated regression line
+fitness %>% ggplot(aes(x = Tread, y = Run)) +
+  # plot the points; set the degree of transparency, size and color
+  geom_point(color = "darkblue", alpha = 0.7, size = 2) +
+   # add the estimated regression line with a linear model
+  geom_smooth(method = "lm", formula = y ~ x, se = FALSE, color = "red") +
+  # set the x-axis, y-axis and title
+  labs(
+    x = "Treadmill Training Time (minutes)",
+    y = "10 Kilometer Run Time (minutes)",
+    title = "Scatterplot of 10 Kilometer Run Time vs Treadmill Training Time"
+  )
+```
+
+### (b)
+```{r}
+# construct the linear regression model
+model_fitness <- lm(Run ~ Tread, data = fitness)
+# show the coefficients of intercept and slope with coef()
+coef(model_fitness)
+```
+**Answer:** The estimated regression line: Run = 59.921118 - 1.960135 * Tread.
+
+### (c)
+**Answer:** When there is one more minute of training at high intensity on the treadmill, the athlete's time to complete a 10-kilometer run is expected to decrease by approximately 1.96 minutes.
+
+### (d)
+**Answer:** It does not make sense to interpret the intercept in this case because the time spent on treadmills normally will not be 0. 0 minute is outside the proper range of the data and not meaningful in practical life.
+
+### (e)
+```{r}
+# construct the linear regression model
+model_fitness <- lm(Run ~ Tread, data = fitness)
+fitness %>%
+  # add two columns: the predicted_Run and squared error
+  mutate(
+    predicted_Run = predict(model_fitness),
+    squared_error = (Run - predicted_Run)^2
+  ) %>%
+  # calculate the sum of squared error
+  summarise(SSE = sum(squared_error))
+```
+**Answer:** The value of SSE is 66.41944.
+
+---
+
+## IV
+### (a)
+```{r}
+# construct the linear regression model
+model_fitness <- lm(Run ~ Tread, data = fitness)
+# show the difference between the two expected values and unname it
+unname(coef(model_fitness)[2]) * (-2)
+```
+**Answer:** The expected amount of time will increase by about 3.92027 minutes.
+
+### (b)
+```{r}
+# construct the linear regression model
+model_fitness <- lm(Run ~ Tread, data = fitness)
+fitness %>%
+  # add two columns: the predicted_Run and squared error
+  mutate(
+    predicted_Run = predict(model_fitness),
+    squared_error = (Run - predicted_Run)^2
+  ) %>%
+  # calculate the sum of squared error
+  summarise(`sigma squared error` = sum(squared_error))
+```
+**Answer:** The sigma squared error is 66.41944. It is actually the same as SSE.
+
+### (c)
+```{r}
+# construct the linear regression model
+model_fitness <- lm(Run ~ Tread, data = fitness)
+fitness %>%
+  mutate(predicted = predict(model_fitness),
+         error = Run - predicted) %>%
+  head(1)
+```
+**Answer:** The estimated error associated with the first row of the dataset is -1.720105.
+
+### (d)
+```{r}
+# construct the linear regression model
+model_fitness <- lm(Run ~ Tread, data = fitness)
+# get the intercept, which is the first coefficient
+intercept_fitness <- coef(model_fitness)[1]
+# get the slope, which is the second coefficient
+slope_fitness <- coef(model_fitness)[2]
+# plug 8.5 into the function of the regression line
+Run_8dot5 <- intercept_fitness + slope_fitness * 8.5
+# unname it, so the result will only be a number
+unname(Run_8dot5)
+```
+**Answer:** The estimated Y is 43.25997 when X = 8.5.
+
+
+
+

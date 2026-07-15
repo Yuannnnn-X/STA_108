@@ -1,0 +1,641 @@
+---
+title: 'STA 108 Midterm Project 2'
+author: 
+  - "INSTRUCTORS: Maxime Guiffo Pouokam, Su I Lao, Sirapat Watakajaturaphon"
+  - "STUDENTS: Tianda Fan, Tianxin Ji, Zhuowa Lin, Xinyan Wang, Yuan Xie, Chen-Chen Yeh"
+date: "2025-05-24"
+output: 
+  pdf_document:
+    keep_tex: no
+    latex_engine: xelatex
+header-includes:
+  - \usepackage{amsmath}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval = TRUE, message=FALSE, warning=FALSE) 
+# when knitting for submission, change eval = FALSE to TRUE, so codes can be evaluated and present results.
+```
+
+**Details**  
+  
+Your report should be the following format:  
+  
+i. Typed.
+ii. A title page including your name/s, the name of the class, and the name of your instructor.
+iii. Do not combine the two reports sections. Leave them separated.
+iv. Double-sided pages.
+v. An appendix of your R code used to produce the results. **Do not include R code in the body of your report.**
+  
+Please write a separate report for each topic, and staple them together. For example, your end report should be  
+  
+**Cover Page**   
+**Report for Topic I (including all sections)**  
+**Report for Topic II (including all sections)**  
+**Code appendix.**  
+  
+Feel free to make your cover page “unique” so that it is easy to find when I hand them back.  
+  
+Notice: your project will be graded as a group effort. This means that you are responsible for your own work, and your partner’s work. I will not assign two different grades to one project. 
+
+\newpage
+
+```{r include = FALSE}
+# use tidyverse environment
+library(tidyverse)
+# read csv files here
+original <- read_csv("Transform2.csv")
+housing <- read_csv("housing.csv")
+# briefly know the structure of the two data sets
+original %>% head()
+housing %>% head()
+```
+
+# Topic I: Transformation of Variables
+
+## a. Plot your original data and the diagnostic plots/tests for the original data. Report the original regression line.
+```{r echo = FALSE, fig.height = 3.5, fig.width = 5.5}
+plot(original$X,original$Y)
+```
+
+**Interpretation:** This graph is the scatter plot of the original data. It shows a roughly linear relationship between Y and X but with some severe outliers and uneven spread of data points. We would expect that there might be potential issues with variance and model fit. 
+
+```{r echo = FALSE, fig.height = 3.5, fig.width = 5.5}
+library(car)
+fit_original=lm(Y~X,data=original)
+original$ei=resid(fit_original)
+qqPlot(original$ei,id = FALSE)
+```
+
+**Interpretation:** This is a residual Q-Q plot based on original data. This graph shows that there is a severe deviation from the normal reference line when X gets bigger. This suggests that the data violates residual normality assumption.
+
+```{r echo = FALSE, fig.height = 3.5, fig.width = 5.5}
+plot(fit_original, which = 3)
+```
+
+**Interpretation:** The scale-location plot of standardized residuals vs fitted values shows a relatively increasing trend. This suggests that residuals may have inconstant variance.
+
+```{r echo = FALSE, fig.height = 3.5, fig.width = 5.5}
+hist(original$ei,xlab="estimated errors",main="Histogram of estimated errors")
+```
+
+**Interpretation:** This is the histogram of estimated errors for the original data. We see that the graph skewed to the right, implying the residuals may not follow normal distribution.
+
+```{r echo = FALSE}
+the.shapiro=shapiro.test(original$ei)
+
+result <- data.frame(
+  W = as.numeric(the.shapiro$statistic),
+  p_value = the.shapiro$p.value
+)
+
+knitr:: kable(result, caption = "Shapiro-Wilk normality test for orginal data",align = "c")
+```
+**Interpretation:** The Shapiro-Wilk Test results for original data is the p value of approximately zero. Thus, by using alpha=0.05, we reject the null hypothesis. We have significant evidence that the residuals don't follow the normal distribution in original data.
+
+```{r echo = FALSE}
+# Shapiro-Wilk p-value = 0 -> non-normality -> Fligner-Killeen test of homogeneity of variances
+Group = rep("Lower",nrow(original)) 
+Group[original$Y > median(original$Y)] = "Upper" 
+Group = as.factor(Group)
+
+original$Group = Group
+the.FKtest= fligner.test(fit_original$residuals, original$Group)
+result <- data.frame(
+  chi_squared = round(as.numeric(the.FKtest$statistic),4),
+  p_value = round(the.FKtest$p.value,4)
+)
+
+knitr:: kable(result, caption = "Fligner-Killeen test of homogeneity of variances",align = "c")
+```
+**Interpretation:** The Fligner-Killeen test results for original data is the p value of 0.0338. Thus, by using alpha=0.05, we reject the null hypothesis. We have significant evidence that the residuals don't have constant variance in original data.
+
+```{r echo = FALSE, fig.height = 3.5, fig.width = 5.5}
+plot(original$X,original$Y)
+abline(abline(fit_original,col = "purple",lwd = 2))
+```
+
+**Interpretation:** This is a scatter plot with a regression line for the original data. It shows a positive linear relationship between Y and X. We observe 2 significant outliers from the graph. 
+
+```{r echo = FALSE}
+the.summary=round(summary(fit_original)$coef,4)
+knitr:: kable(the.summary,caption = "summary of original regression line")
+```
+
+**Interpretation:** The estimated line is $\hat{Y} = 8.6254 + 0.0041X$. This regression line suggests that for each one-unit increase in X, the predicted value of Y increases by 0.0041 units on average. The intercept 8.6254 represents the predicted Y value when X=0.
+
+---
+
+## b. You should consider removing outliers, and transforming X, Y or both. You should report back appropriate values (or plots) for **every combination of transformations and removing outliers you considered**. You should pick your “best” combination of transformed variables.
+
+```{r echo = FALSE}
+# Fligner-Killeen test p-vvalue=0.0338 -> non-equal variance -> Studentized/Standardized residuals or Deleted Residuals (we choose this one)
+
+ti = rstudent(fit_original)
+alpha = 0.05 ; n = nrow(original); p = length(fit_original$coefficients)
+
+cutoff.deleted = qt(1-alpha/(2*n), n -p -1 )
+
+outliers = which(abs(ti) > cutoff.deleted)
+removed=original[-outliers,1:2]
+the.outliers=original[outliers,][-4]
+
+knitr:: kable(the.outliers,caption = "The outliers")
+```
+**Interpretation:** For the original data, we remove two severe outliers, coordinate: (306, 19.56) and (835, 17.94). 
+
+```{r echo = FALSE, fig.height = 3.5, fig.width = 5.5}
+library(MASS)
+BC = boxcox(fit_original,lambda = seq(-6,6,0.01),plotit = FALSE)
+lambda = BC$x[which.max(BC$y)]
+
+BC.Y = (original$Y^lambda - 1)/lambda
+BC.data = data.frame(Y = BC.Y, X1 = original$X)
+
+par(mfrow = c(1,2))
+BC.model = lm(Y ~ X1, data = BC.data)
+plot(BC.data$X1, BC.data$Y)
+qqnorm(BC.model$residuals)
+qqline(BC.model$residuals)
+```
+
+**Interpretation:** The residual Q-Q plot of the transformed data shows that the data points are mostly on the normal reference line, indicating that the residuals are approximately normally distributed after transformation.
+
+```{r echo = FALSE, fig.height = 3.5, fig.width = 5.5}
+plot(BC.Y,original$Y,type = "p", main = "Y v.s. Transformed Y", xlab ="Transformed Y", ylab="Y", pch=18,col="blue")
+```
+
+**Interpretation:** The scatter plot of original Y v.s. transformed Y shows a smooth, increasing relationship, indicating that the transformation improves model assumptions.
+
+```{r echo = FALSE}
+fit_removed=lm(Y~X,data=removed)
+removed$ei=fit_removed$residuals
+removed.shapiro=shapiro.test(removed$ei)
+
+# Shapiro-Wilk p-value = 0.03983 -> non-normality -> Fligner-Killeen test of homogeneity of variances
+Group = rep("Lower",nrow(removed)) 
+Group[removed$Y > median(removed$Y)] = "Upper" 
+Group = as.factor(Group)
+removed$Group = Group
+removed.FKtest= fligner.test(fit_removed$residuals, removed$Group)
+
+fit_BC=lm(Y~X1,data=BC.data)
+BC.data$ei=fit_BC$residual 
+BC.shapiro=shapiro.test(BC.data$ei)
+
+# Shapiro-Wilk p-value = 0.7217 -> normality -> BFtest
+library(car)
+Group = rep("Lower",nrow(BC.data)) 
+Group[BC.data$Y > median(BC.data$Y)] = "Upper" 
+Group = as.factor(Group)
+BC.data$Group = Group
+BC.BFtest = leveneTest(ei~Group, data=BC.data, center=median)
+
+# Transform and then remove outliers
+
+# BC.data: Levene's Test for Homogeneity of Variance p-value=0.6204 -> equal variance -> Semi-studentized/standardized residuals
+
+ei.s = fit_original$residuals/sqrt(sum(fit_original$residuals^2)/(nrow(original) - length(fit_original$coefficients)))
+cutoff = qt(1-alpha/(2*n), n-p )
+
+outliers = which(abs(ei.s)> cutoff)
+BCremoved=BC.data[-outliers,1:2]
+the.outliers=BC.data[outliers,][-4]
+
+knitr:: kable(the.outliers,caption = "The outliers of transformed data") 
+```
+**Interpretation:** The outlier identified in the transformed data is as follows: (306, 0.7693648). We see that the outlier after transformation of Y has reduced to only one. 
+
+```{r echo = FALSE}
+fit_BCremoved=lm(Y~X1,data=BCremoved)
+BCremoved$ei=fit_BCremoved$residual 
+BCremoved.shapiro=shapiro.test(BCremoved$ei)
+
+# Shapiro-Wilk p-value = 0.2995 -> normality -> BFtest
+library(car)
+Group = rep("Lower",nrow(BCremoved)) 
+Group[BCremoved$Y > median(BCremoved$Y)] = "Upper" 
+Group = as.factor(Group)
+BCremoved$Group = Group
+BCremoved.BFtest = leveneTest(ei~Group, data=BCremoved, center=median)
+
+results <- data.frame(
+  Test = c("Shapiro", "Brown-F","Fligner-K"),
+  `Original data` = c(round(the.shapiro$p.value,4), "",round(the.FKtest$p.value,4)),
+  `Data transformed only` = c(round(BC.shapiro$p.value,4), round(BC.BFtest$`Pr(>F)`[1],4),""),
+  `Outlier removal only` = c(round(removed.shapiro$p.value,4),"", round(removed.FKtest$p.value,4)),
+  `Outlier R and Data T` = c(round(BCremoved.shapiro$p.value,4),round(BCremoved.BFtest$`Pr(>F)`[1],4),"")
+)
+
+knitr:: kable(results,caption = "P-values for Normality and Homoscedasticity Tests")
+```
+**Interpretation:** Table 6 shows that the combination of transformation and outlier removal results in p-values. By setting p-value equals to 0.05, we conclude that for the original data, both assumptions are violated. When we only transform Y, both assumptions hold. When we only remove outliers, only constant variance assumption holds, normality assumption is still violated. And when we do both transform Y and remove outliers, both assumptions hold. 
+
+---
+
+## c. Discuss your results. Did transforming the data help? What are the downsides? Do you believe the transformed data is a better fit? What would you suggest for a client who wants to use this data set for simple linear regression (which transformations would you use, if any)?
+
+**Answer:** In the original dataset, we see that the residuals normality and constant variance assumption were violated based on Shapiro-Wilk Test and Fligner-Killeen Test results of rejecting null hypothesis using $\alpha$ = 0.05. So we then decide to use Box-Cox transformation to transform Y to get the new transformed data. We also completed two other combinations, which is only removing outliers without transforming data and transforming and removing outliers together to compare which one results in the best fit. From the above interpretation, we could see that transforming data definitely helps, both the Shapiro-Wilk Test statistic and Brown-F test statistic significantly increased after the transforming, regardless of removing outliers or not. In this case, I would believe that the transformed data is a better fit. However, if this two data were to compare, we would think that transforming Y and removing outliers would leads to a more balanced and correct model comparing to just transforming Y, since removing outliers could help fix the skewness in regression line caused by them and make the dataset more accurate in general. In addition, for the case of only removing outliers, it only improves constant variance slightly and doesn't fix normality assumption.  Thus, if I am suggesting for a client who wants to use this data set for simple linear regression, I would suggest using both transforming and removing outliers models. However, the downside of transforming data is that it makes interpretation harder. 
+
+---
+
+# Topic II: Multiple Regression Modeling  
+  
+## I. Introduction. State the question you are trying to answer, why it is a question of interest (why might we be interested in the answer), and what approach you are going to take (just the name of the approach).
+
+**Answer:** In this study, our goal is to build a multiple regression model to understand how various property characteristics influence house prices. The response variable is *price*, and the predictors we consider include:  
+  
+- number of bedrooms (`br`)
+- lot square footage (`lsqft`)
+- building square footage (`bsqft`)
+- year built (`year`)
+- county (`county`)
+  
+This question is of practical interest in the real estate market, as it can help guide buyers, sellers, and policymakers in making data-informed decisions. 
+  
+We approach this analysis using *multiple linear regression*, which allows us to examine how each predictor contributes to explaining variability in price while controlling for others.
+  
+All hypothesis tests in this report are conducted at a significance level of $\alpha= 0.05$.
+
+---
+
+## II. Summary of your data (and only the data you are using for the question). You should consider plots of Y vs. $X_i$ for all $i$. Basic summary statistics of your data are also helpful. Point out anything unusual.
+
+```{r echo = FALSE, fig.height = 3.5, fig.width = 5.5}
+# Price vs Bedrooms
+ggplot(housing, aes(x = br, y = price)) +
+  geom_point(alpha = 0.5, color = "red") +
+  labs(title = "Price vs Bedrooms (X1)", x = "Bedrooms (X1)", y = "Price (Y)")
+```
+
+**Interpretation:** There seems to be no obvious linear relationship between the number of bedrooms and the house price. This plot is widely distributed, and the prices of some properties with the same number of bedrooms vary greatly. This indicates that this variable alone may not be sufficient to predict prices effectively.
+
+```{r echo = FALSE, fig.height = 3.5, fig.width = 5.5}
+# Price vs Lot Sqft
+ggplot(housing, aes(x = lsqft, y = price)) +
+  geom_point(alpha = 0.5, color = "blue") +
+  labs(title = "Price vs Lot Sqft (X2)", x = "Lot Square Footage (X2)", y = "Price (Y)")
+```
+
+**Interpretation:** The lot square footage shows a weak positive trend and price. However, there are extreme outliers in terms of batch size, which may overly affect the regression model. We will need to further investigate the potential transformation or removal of these outliers.
+
+```{r echo = FALSE, fig.height = 3.5, fig.width = 5.5}
+# Price vs Building Sqft
+ggplot(housing, aes(x = bsqft, y = price)) +
+  geom_point(alpha = 0.5, color = "purple") +
+  labs(title = "Price vs Building Sqft (X3)", x = "Building Square Footage (X3)", y = "Price (Y)")
+```
+
+**Interpretation:** The building square footage is positively correlated with the housing price. This mode indicates a rather linear relationship, making building square footage a potentially valuable predictor in regression models.
+
+```{r echo = FALSE, fig.height = 3.5, fig.width = 5.5}
+# Price vs Year Built
+ggplot(housing, aes(x = year, y = price)) +
+  geom_point(alpha = 0.5, color = "orange") +
+  labs(title = "Price vs Year Built (X4)", x = "Year Built (X4)", y = "Price (Y)")
+```
+
+**Interpretation:** There is no obvious linear relationship between year built and the price. Houses built in different eras seem to have no significant price differences, suggesting that the year may have no significant impact on the model, or further investigation may be needed (e.g. nonlinearity or interaction).
+
+```{r echo = FALSE, fig.height = 3.5, fig.width = 5.5}
+# Price vs County
+ggplot(housing, aes(x = county, y = price)) +
+  geom_boxplot(fill = "lightblue", alpha = 0.7) +
+  labs(title = "Price vs County (X5)",
+       x = "County (X5)",
+       y = "Price (Y)")
+```
+
+**Interpretation:** County variables seem to show the price differences between different regions. Compared with Napa and Sonoma, the average house price in Sonoma County is lower, which indicates that this county may be an important classification predictor in our model.
+
+```{r echo = FALSE}
+summary1_df <- housing %>%
+  dplyr::select(-county) %>%
+  summarise(across(
+    everything(),
+    list(
+      Min = min,
+      Q1 = ~quantile(.x, 0.25),
+      Median = median,
+      Mean = mean,
+      Q3 = ~quantile(.x, 0.75),
+      Max = max
+    )
+  )) %>%
+  pivot_longer(cols = everything(),
+               names_to = c("Variable", "Statistic"),
+               names_sep = "_") %>%
+  pivot_wider(names_from = Statistic, values_from = value)
+
+# output
+knitr::kable(summary1_df, caption = "Summary Statistics of Numerical Variables (Reconstructed)")
+
+summary2 <- table(housing$county)
+summary2_df <- as.data.frame(summary2)
+colnames(summary2_df) <- c("County", "Frequency")
+knitr::kable(summary2_df, caption = "Frequency of County (X5)")
+```
+**Interpretation:** Descriptive statistics show that house prices range from 90 to 3,450 (in thousands). The maximum value of the lot square footage variable exceeds 1,000,000, which is much higher than the third quartile value (~9583), indicating an extreme outlier. Similarly, bsqft also has a wide range (390 to 4003), supporting the need to inspect influential observations.
+
+---
+
+## III. Model Selection. Based on your own goal of correctness or prediction, perform model selection. 
+  
+**Since the primary goal of this project is correctness rather than prediction, we will focus on selecting the “true” model. Therefore, BIC (Bayesian Information Criterion) and $C_p$  Mallows are the appropriate criteria to guide our model selection. ** 
+
+**Formulae:** $$BIC = -2LL + ln(n)p$$ $$C_p = \frac{\text{SSE}_M}{\text{MSE}_F} - (n - 2p_M)$$
+  
+```{r echo = FALSE}
+library(olsrr)
+library(knitr)
+
+# ensure county is a categorical variable
+housing$county <- as.factor(housing$county)
+# fit the full model
+full_model <- lm(price ~ br + lsqft + bsqft + year + county, data = housing)
+
+# use BIC to do best subset selection
+bic_result <- ols_step_best_subset(full_model, crit = "bic")
+# plug the values of BIC
+bic_table <- bic_result$metrics %>%
+  transmute(
+    Num_Predictors = n,
+    Predictors = str_replace_all(predictors, ",", " + "),
+    BIC = round(sbic, 2)
+  ) %>%
+  arrange(BIC)
+
+# show the BIC in a table
+knitr::kable(bic_table, 
+             caption = "Best Subset Models Ranked by BIC",
+             row.names = FALSE)
+```
+**Interpretation:** First, we perform best subset selection based on the BIC values, ranked from lowest to highest shown in Table 9 above. The BIC criteria balances the model fit by penalizing larger models, so we pick the smallest value as the “best”. From the table, the lowest BIC value is 2160.41 in Row 1, corresponding to the model with 4 predictors: Price ~ br + lsqft + bsqft + county.
+
+```{r echo = FALSE}
+# use Cp to do best subset selection
+cp_result <- ols_step_best_subset(full_model, crit = "cp")
+
+# create Cp model selection data frame
+cp_table <- cp_result$metrics %>%
+  transmute(
+    Num_Predictors = n,
+    Predictors = str_replace_all(predictors, ",", " + "),
+    Cp = round(cp, 2)
+  ) %>%
+  arrange(Cp)
+
+# output the table
+knitr::kable(cp_table, caption = "Best Subset Models Ranked by Mallows' Cp", row.names = FALSE)
+```
+**Interpretation:** Second, we perform best subset selection based on the $C_p$ Mallows values, ranked from lowest to highest shown in Table 10 above. The $C_p$ Mallows criteria picks the model with least bias, and we are trying to find the smallest model for which $C_p \approx p$ (number of predictors). From the table, the model containing 4 predictors has the smallest $C_p$ value of 5.02, which is also close to the ideal value p = 5 (including the intercept). In contrast, the other models exhibits much larger gaps between their $C_p$ values and p values. Therefore, we choose the model with 4 predictors: Price ~ br + lsqft + bsqft + county. **Since our performance results of BIC and $C_p$ are the same, we choose Price ~ br + lsqft + bsqft + county to be our final model.**
+
+---
+
+## IV. Diagnostics. You do not need to consider transformation of variables. Remove outliers, check assumptions, etc.  
+  
+In this Diagnostics section, we are going to assess the following assumptions:  
+i) existence of outliers  
+ii) normality of residuals  
+iii) homoscedasticity of residuals  
+  
+**Check for outlier existence with a Q-Q Plot:**  
+```{r echo = FALSE, fig.height = 3.5, fig.width = 5.5}
+# construct the multiple linear models with the four selected independent variables
+model_housing_reduced <- lm(price ~ br + lsqft + bsqft + county, data = housing)
+# Q-Q plot
+qqnorm(rstandard(model_housing_reduced), main = "Q-Q Plot of Standardized Residuals")
+qqline(rstandard(model_housing_reduced), col = "red", lwd = 2)
+```
+
+**Interpretation:** First, we perform a Q-Q plot of standardized results to help us evaluate the normality assumption of residuals in our linear model. Ideally, if the residuals are normally distributed, the points would fall approximately along the reference line. In this plot, we observe several noticeable deviations at both tails, especially on the upper tail. These points suggest the existence of potential outliers in our residual distribution, and may violate the normality assumption. But overall, the majority of points align well with the red reference line. Therefore, we need to conduct further tests to assess the normality. 
+  
+**Remove outliers:**
+```{r echo = FALSE}
+# fit the reduced model
+model_housing_reduced_clean <- lm(price ~ br + lsqft + bsqft + county, data = housing)
+# get studentized residuals
+stud_res <- rstudent(model_housing_reduced)
+# number of rows and degrees of freedom
+n <- nrow(housing)
+df <- df.residual(model_housing_reduced)
+
+# Bonferroni-adjusted t 
+alpha <- 0.05
+t_crit <- qt(1 - alpha / (2 * n), df)
+# find the outlier
+outlier_index <- which(abs(stud_res) > t_crit)
+outlier <- housing[outlier_index, ]
+knitr::kable(outlier, caption = "Outliers Identified Using Bonferroni-Adjusted t-Test on Studentized Residuals")
+
+housing_reduced <- housing[-outlier_index, ]
+# the new data set without outliers
+model_housing_reduced_clean <- lm(price ~ br + lsqft + bsqft + county, data = housing_reduced)
+```
+**Interpretation:** Second, in order to further examine the outliers, we perform a Bonferroni-adjusted t-test on studentized residuals. We observe one extreme observation shown in Table 11 — A point with a price of $3450, located in Napa Country, with an unusually high living space of 111078 square footage. As a result, we consider this observation to be a valid outlier, and we decide to remove it from our dataset. 
+  
+```{r echo = FALSE}
+# the new data set without outliers
+model_housing_reduced_clean <- lm(price ~ br + lsqft + bsqft + county, data = housing_reduced)
+summary_housing_reduced_clean <- summary(model_housing_reduced_clean)$coefficients
+knitr::kable(summary_housing_reduced_clean, caption = "Coefficients of the Reduced Model without Outliers")
+```
+**Interpretation:** The function of this multiple regression line, after removing the identified outlier, is: $$\hat{Y} = 289.11 - 23.29 X_1 + 0.00109 X_2 + 0.2187 X_3 - 183.23 X_{4,A} - 23.18 X_{4,B}$$  
+where: $$\hat{Y} = \text{price} = \text{estimated house price}$$ $$X_1 = \text{br} = \text{the number of bedrooms the house has}$$ $$X_2 = \text{lsqft} = \text{living square footage}$$ $$X_3 = \text{bsqft} = \text{basement square footage}$$ $$X_{4,A} = \text{indicator variable for County Solano. (1 if Solano, 0 otherwise)}$$ $$X_{4,B} = \text{indicator variable for County Sonoma. (1 if Sonoma, 0 otherwise)}$$  
+This equation represents the estimated relationship between house price and predictors: br, lsqft, bsqft, and country location (Napa county is the baseline category). 
+
+**Check for normality with a new Q-Q Plot without outliers:**  
+```{r echo = FALSE, fig.height = 3.5, fig.width = 5.5}
+# construct the multiple linear models with the four selected independent variables without outliers
+model_housing_reduced_clean <- lm(price ~ br + lsqft + bsqft + county, data = housing_reduced)
+# Q-Q plot
+qqnorm(rstandard(model_housing_reduced_clean), main = "Q-Q Plot of Standardized Residuals without Outliers")
+qqline(rstandard(model_housing_reduced_clean), col = "red", lwd = 2)
+```
+
+**Interpretation:** After we remove the outlier and generate a new linear regression model, we again perform of Q-Q plot to reassess the normality assumption of our model. Compared to our previous Q-Q plot, the new plot shows some slight improvement, but there are still visible deviations at both tails. Since only one outlier is removed, the residual distribution still exhibits signs of non-normality. 
+  
+**Check for normality with Shapiro-Wilks Test:**  
+**Hypotheses:** $H_0:$ The residuals are normally distributed. VS. $H_A:$ The residuals are not normally distributed.
+```{r echo = FALSE}
+# construct the multiple linear models with the four selected independent variables without outliers
+model_housing_reduced_clean <- lm(price ~ br + lsqft + bsqft + county, data = housing_reduced)
+# conduct the SW test
+SWresult <- shapiro.test(residuals(model_housing_reduced_clean))
+
+sw_table <- data.frame(
+  Method = SWresult$method,
+  W_statistic = SWresult$statistic,
+  P_value = SWresult$p.value
+)
+
+knitr::kable(sw_table, caption = "Shapiro-Wilks Test for Normality of Residuals")
+```
+**Interpretation:** To further assess the normality of residuals, we perform a formal test using the Shapiro-Wilks test. From Table 13, this test has a Shapiro-Wilks-statistic of 0.9077 and a p-value of 0, which is smaller than our significance level of 0.05. Therefore, we reject the null hypothesis, and conclude that even after removing the outliers, the residuals are not normally distributed. 
+  
+**Check for constant variance roughly with a residual plot:**  
+```{r echo = FALSE, fig.height = 3.5, fig.width = 5.5}
+# stores the value in a tiny data frame
+residual_df <- data.frame(
+  Fitted = fitted(model_housing_reduced_clean),
+  Residuals = resid(model_housing_reduced_clean)
+)
+
+# plot the graph
+ggplot(residual_df, aes(x = Fitted, y = Residuals)) +
+  geom_point(alpha = 0.6, color = "steelblue") +
+  geom_hline(yintercept = 0, color = "red", linetype = "dashed", size = 1) +
+  labs(
+    title = "Residual Plot: Residuals vs Fitted Values",
+    x = "Fitted Values",
+    y = "Residuals"
+  )
+```
+
+**Interpretation:** To help assess the constant variance assumption, we plot the residuals plot. Ideally, the residuals should scatter randomly around the red horizontal line at zero, with no clear and obvious patterns. In this plot, we observe an approximate cone-shaped pattern, where the spread of residuals increases with larger values. Therefore, we conclude that the variance of residuals is not constant across the range of values.
+  
+**Check for constant variance with Fliger-Killeen Test:**  
+**Hypotheses:** $H_0:$ The residuals have equal variances across all groups. VS. $H_A:$ The residuals have different variances in at least one group.
+```{r echo = FALSE}
+residuals_clean <- residuals(model_housing_reduced_clean)
+fitted_clean <- fitted(model_housing_reduced_clean)
+
+# separate fitted values into four groups
+fitted_group <- cut(fitted_clean, breaks = quantile(fitted_clean, probs = seq(0, 1, 0.25)), 
+                    include.lowest = TRUE, labels = FALSE)
+
+# conduct Fligner-Killeen Test
+fligner_result <- fligner.test(residuals_clean ~ as.factor(fitted_group))
+
+# output in the form of a table
+fligner_table <- data.frame(
+  Method = fligner_result$method,
+  Statistic = round(fligner_result$statistic, 4),
+  P_value = round(fligner_result$p.value, 4)
+)
+
+knitr::kable(fligner_table, caption = "Fligner-Killeen Test for Homoscedasticity")
+```
+**Interpretation:** Then, to test whether the residuals have constant variance (homoscedasticity), we conducted the Fligner-Killeen test. From Table 14, our test statistic is 28.4185 with a p value of 0.00, which is smaller than our significance level of 0.05. Therefore, we reject the null hypothesis, and conclude that the residuals have different variances in at least one group. 
+  
+**Check for constant variance with Brown-Forsythe Test:**  
+**Hypotheses:** $H_0:$ The residuals have equal variances across all groups. VS. $H_A:$ The residuals have different variances in at least one group.
+```{r echo = FALSE}
+library(car)
+
+# separate fitted value groups
+fitted_group <- cut(fitted(model_housing_reduced_clean),
+                    breaks = quantile(fitted(model_housing_reduced_clean), probs = seq(0, 1, 0.25)),
+                    include.lowest = TRUE, labels = FALSE)
+
+# Brown-Forsythe test: Levene test with median
+bf_result <- leveneTest(residuals(model_housing_reduced_clean) ~ as.factor(fitted_group),
+                        center = median)
+# output the results
+knitr::kable(as.data.frame(bf_result), caption = "Brown-Forsythe Test for Constant Variance")
+```
+**Interpretation:** To further assess the constant variance assumption, we perform the Brown-Forsythe test. From Table 15, our test yielded a F-value of 12.98, with a p-value of 0.0000001, which is smaller than our significance level of 0.05. Therefore, we again reject the null hypothesis and conclude that, the residuals exhibit non-constant variance across groups. This result is the same as the Fligner-Killeen test, and reinforces the evidence that, the homoscedasticity assumption is violated. 
+
+---
+
+## V. Analysis. Report back the model fit, confidence intervals, test-statistics, and p-values, nulls and alternatives, etc. You may use tables here, but be sure that you organize your work. Remember to write your results in full sentences where possible.
+  
+**Report back the model fit:**  
+```{r echo = FALSE}
+model_summary <- summary(model_housing_reduced_clean)
+
+# get the coefficients of the model fit
+fit_table <- data.frame(
+  Metric = c("R-squared", "Adjusted R-squared", "Residual Standard Error", "F-statistic", "F-test p-value"),
+  Value = c(
+    model_summary$r.squared,
+    model_summary$adj.r.squared,
+    model_summary$sigma,
+    model_summary$fstatistic[1],
+    pf(model_summary$fstatistic[1],
+       model_summary$fstatistic[2],
+       model_summary$fstatistic[3],
+       lower.tail = FALSE)
+  )
+)
+
+# output in the form of a table
+knitr::kable(fit_table, caption = "Model Fit Statistics for the Final Reduced Model (Full Precision)")
+```
+**Interpretation:** From the Model Selection section, we have decided to run the regression with four predictors that are br(number of bedrooms), lsqft(lot square footage), bsqft(building square footage), and county. We ran the new regression model with a new dataset that removed outliers, and we got $\hat{Y} = 289.11 - 23.29 X_1 + 0.00109 X_2 + 0.2187 X_3 - 183.23 X_{4,A} - 23.18 X_{4,B}$ We then fit the new model, and calculated the Model Fit Statistics for it as shown in Table 16. F-test is used to test the linear relationship between the house price with br(number of bedrooms), lsqft(lot square footage), bsqft(building square footage), and county. Hypotheses: $H_0: \beta_{1,2,3\text{ or }4} = 0$ VS. $H_A:$ at least one of $\beta_{1,2,3\text{ or }4} \ne 0$. The F-statistic is equal to 56.7922572, and the corresponding p-value equals zero, which is smaller than $\alpha = 0.05$. Therefore, we reject the $H_0$ and conclude that at least one of the $\beta_{1,2,3\text{ or }4} \ne 0$. The R-squared equals 0.6016622, meaning that our new model fits up to 60.16622%. The Residual Standard Error equals 173.6172620, meaning that our predictions are on average 173.6172620 units away from the observed values.  
+  
+**Confidence intervals:**  
+**Formula:** $$\ confidence\ interval: b_i \pm t \times SE(b_i)$$
+```{r echo = FALSE}
+ci_table <- confint(model_housing_reduced_clean)
+
+# convert to a data frame，and add the variable names
+ci_df <- as.data.frame(ci_table)
+ci_df <- tibble::rownames_to_column(ci_df, var = "Coefficient")
+colnames(ci_df) <- c("Coefficient", "Lower 95% CI", "Upper 95% CI")
+
+# show the output table
+knitr::kable(ci_df, caption = "95% Confidence Intervals for Coefficients in the Final Reduced Model")
+```
+**Interpretation:** In order to investigate whether the X variables are valid predictors to predict the house price, we performed multiple confidence intervals for the coefficients in the final reduced model, and the results are shown in Table 17.
+
+We are 95% confident that the change in house price is between “-58.5133060” and “11.9261557” in thousand dollars with one more bedroom in the house, holding other variables constant. Zero is included in the interval, so we cannot conclude a significant linear relationship between the number of bedrooms with the house price. 
+
+We are 95% confident that the change in house price is between “0.0007897” and “0.0013868” in thousand dollars, with one unit increase in the living square footage for the house. Since zero is not included in the interval, both the upper and lower bounds are positive. Therefore, we can conclude that there is a significant positive linear relationship between the house price and the living square footage for the house. 
+
+We are 95% confident that the change in house price is between “0.1664864” and “0.2708239” in thousand dollars, with one unit increase in basement square footage for the house. Since zero is not included in the interval, both the upper and lower bounds are positive. Therefore, we can conclude that there is a significant positive linear relationship between the house price and the basement square footage for the house. 
+
+We are 95% confident that the price for the house that is located at Solano is between “122.6599353” and “243.8070033” thousand dollars lower than houses located at Napa, holding other variables constant.  Zero is not included in the interval, and both upper and lower bounds are negative, so we conclude that there is a significant negative linear relationship between the house price and house location in Solano or not.
+ We are 95% confident that the price for the house that is located at Solano is between “-84.7771124” and “38.4196805” thousand dollars, different from houses located at Napa, holding other variables constant.  Zero is included in the interval, so we conclude that there is no significant linear relationship between the house price and house location in Sonoma or not.
+
+
+Therefore, there is a significant positive linear relationship between $Y$ with $X_2$ and $X_3$. A significant negative relationship between $Y$ with $X_{4,A}$. There is no significant linear relationship between Y with $X_1$ and $X_{4,B}$ but there might be other non-linear relationships between them. 
+
+The interval for the interpretation is between “198.6023776” and  “379.6270142” in thousand dollars. However, there is no practical interpretation of it. 
+  
+**Test-statistics, and p-values, nulls and alternatives:**  
+**Formula:** $$t = \frac{\hat{\beta}_i - 0}{\mathrm{SE}(\hat{\beta}_i)}$$
+**Hypotheses:** $H_0: \beta_i = 0$  VS. $H_A: \beta_i \ne 0$ 
+```{r echo = FALSE}
+coef_summary <- summary(model_housing_reduced_clean)$coefficients
+
+# convert into a data frame and add the variable names
+coef_df <- as.data.frame(coef_summary)
+coef_df <- tibble::rownames_to_column(coef_df, var = "Coefficient")
+
+# add the column names
+colnames(coef_df) <- c("Coefficient", "Estimate", "Std. Error", "t value", "Pr(>|t|)")
+
+# output the test statistics and p-values
+knitr::kable(coef_df, caption = "Test Statistics and P-values for Coefficients in the Final Reduced Model")
+```
+**Interpretation:** T-test is used to investigate the linear relationship between the house price($Y$) with the number of bedrooms the house has($X_1$), living square footage($X_2$), basement square footage($X_3$), and County ($X_4$). The null and alternative hypothesis are shown, and the test-statistics are shown in Table 18.
+
+The p-value for “br” is 0.1935977 and for “county Sonoma” is “0.4588389”, which are greater than $\alpha$ = 0.05, so we fail to reject $H_0$, and conclude that there is no linear relationship between the number of bedrooms and county Sonoma with the house price.
+
+The p-values for “lsqft”, “bsqft” and “county Solano” are all equal to zero, which is smaller than $\alpha$ = 0.05. Therefore, we can reject the $H_0$, and conclude that there is a significant linear relationship between the house price with lot square footage, building square footage, and the county of Solano. We have positive estimates for both lot square footage and building square footage as “0.0010883” and “0.2186552”, respectively. Therefore, we conclude that they have positive linear relationships with the house price. The estimate for county Solano is “-183.2334693 ”, which is negative. So we conclude that there is a negative linear relationship between house prices with county Solano. 
+
+---
+
+## VI. Interpretation. State your conclusion, and inference that you may draw from your corresponding tests or confidence intervals. These should all be in terms of your problem. Note, this section can be combined with the Analysis section if you so choose.
+  
+**Answer:** In a word, we found that only lsqft(lot square footage), bsqft(building square footage), and county of Solano have significant linear relationship with the house price. Instead, number of bedrooms and the county of Sonoma do not have significant linear relationships with the house price, which means that they might not be valid predictors in the regression model.
+
+---
+
+## VII. Conclusion. Summarize briefly your findings. Here you do not have to re-iterate your numeric values, but summarize all relevant conclusions.
+  
+**Answer:** In this project, we developed a multiple linear regression model to investigate how housing price is influenced by factors such as the number of bedrooms, lot square footage, building square footage, and county. After performing model selection based on BIC and Mallows’ $C_p$, we selected a four-predictor model that provided a reasonable balance between model fit and simplicity.
+
+We removed one extreme outlier and re-evaluated model assumptions. While the final model explains a moderate proportion of variance in housing price, our diagnostic tests revealed violations of normality and constant variance assumptions. This suggests caution when using the model for inference, although it may still be useful for exploratory or predictive purposes.
+
+Overall, the building and lot sizes were strong predictors of housing price, and location (county) also played a meaningful role. We recommend further exploration of model robustness, including possible transformations or alternative modeling strategies, in future work.
+
+---
+ 
+## R Appendix
+
+```{r, ref.label=knitr::all_labels(), eval = F, echo = T}
+
+```
+

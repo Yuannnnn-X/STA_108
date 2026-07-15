@@ -1,0 +1,230 @@
+---
+title: 'STA 108 Homework 6: R Part'
+author: "Yuan Xie"
+date: "2025-06-02"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,eval = TRUE)
+```
+
+## Import Environment and Dataset
+
+```{r}
+# import the tidyverse environment
+library(tidyverse)
+# import the csv files with read_csv()
+salary3 = read_csv("salary3.csv")
+# briefly know the structures of the csv file by head()
+salary3 %>% head()
+```
+
+---
+
+## I
+### (a)
+```{r}
+# change the rk into factors
+salary3 <- salary3 %>%
+  mutate(rk = factor(rk))
+# construct the model with interaction effects
+model_interaction <- lm(sl ~ yd * rk, data = salary3)
+# show the coefficients of the model
+summary(model_interaction)
+```
+**Interpretation:** The estimated regression function is: $$\hat{Y} = 16345.62 + 224.69X_{1} + 8179.94X_{4, \text{associate}} + 7845.14X_{4, \text{full}} - 295.99X_{1}X_{4, \text{associate}} + 13.57X_{1}X_{4, \text{full}}$$
+
+### (b)
+**Hypotheses:** $H_0: \beta_4 = \beta_5 = 0$ VS. $H_A: \text{At least one of }\beta_4 \text{ and } \beta_5 \ne 0$
+```{r}
+# construct the full model (with interaction)
+model_interaction <- lm(sl ~ yd * rk, data = salary3)
+# construct the reduced model (without interaction)
+model_reduced <- lm(sl ~ yd + rk, data = salary3)
+# ANOVA test
+anova(model_reduced, model_interaction)
+```
+**Interpretation:** The F-statistic is 3.7498 and the corresponding p-value is 0.031. The p-value here is smaller than $\alpha = 0.10$. We reject $H_0$ and conclude $\text{at least one of }\beta_4 \text{ and } \beta_5 \ne 0$. The interaction terms should not be dropped from the model.
+
+### (c)
+```{r}
+ggplot(data = salary3, aes(x = yd, y = sl, color = rk)) +
+  geom_point() +  # original data points
+  geom_smooth(method = "lm", formula = y ~ x, se = FALSE) +  # fitted lines separated by rk
+  labs(
+    title = "Interaction Plot: Salary vs. Years Since Degree by Rank",
+    x = "Years Since Highest Degree (yd)",
+    y = "3-Month Salary (sl)",
+    color = "Rank"
+  )
+```
+**Interpretation:** The different lines suggested by the interaction terms are shown in the graph above.
+
+### (d)
+**Answer:** Yes, the interaction term causes a different general effect of $X_1$ by the categories of $X_4$. According to the plot in the previous question, the slopes of "assistant" and "full" regression lines are positive while the slope of "associate" regression line is negative.
+
+### (e)
+**Answer:** The interaction terms add 2 more coefficients to the model with no interactions. The 2 coefficients are $\beta_4 = -295.99$ and $\beta_5 = 13.57$ in the function shown in part (a).
+
+---
+
+## II
+### (a)
+**Answer:** $$\hat{Y}_{\text{assistant}} = 16345.62 + 224.69X_{1}$$ $$\hat{Y}_{\text{associate}} = 16345.62 + 224.69X_{1} + 8179.94 - 295.99X_{1} = 24525.56 - 71.3X_{1}$$ $$\hat{Y}_{\text{full}} = 16345.62 + 224.69X_{1} + 7845.14 + 13.57X_{1} = 24190.76 + 238.26X_{1}$$
+
+### (b)
+**Answer:** $$\text{Subject 1: } \hat{Y}_{\text{assistant}} = 16345.62 + 224.69 \times 10 = 18692.52$$ $$\text{Subject 2: } \hat{Y}_{\text{associate}} = 24525.56 - 71.3X_{1} = 24525.56 - 71.3 \times 10 = 23812.56$$ $$\text{Subject 3: } \hat{Y}_{\text{full}} = 24190.76 + 238.26X_{1} = 24190.76 + 238.26 \times 10 = 26573.36$$
+
+### (c)
+```{r}
+rss_reduced <- deviance(model_reduced)       # RSS for reduced model
+rss_full <- deviance(model_interaction)      # RSS for full model
+
+partial_r2 <- (rss_reduced - rss_full) / rss_reduced
+partial_r2
+```
+**Interpretation:** The value of the partial $R^2$ in this question is 0.1401791. It means when we add the interaction terms to the original model with only $X_1$ and $X_4$, 0.1401791 more variance in Y is explained by the added interaction terms.
+
+### (d)
+**Answer:** I disagree with this statement. According to the regression model, the slope of years since degree is negative for associate professors (-71.3). This contradicts the school official's claim.
+
+---
+
+## III
+### (a)
+```{r}
+# construct the quadratic model
+model_quadratic <- lm(sl ~ yd + I(yd^2), data = salary3)
+summary(model_quadratic)
+```
+**Interpretation:** The estimated regression function is: $$\hat{Y} = 14721.61 + 931.99X_{1} - 16.41{X_1}^2$$
+
+### (b)
+**Hypotheses:** $H_0: \beta_2 = 0$ VS. $H_A: \beta_2 \ne 0$
+```{r}
+summary(model_quadratic)
+```
+**Interpretation:** The p-value of the quadratic term is 0.00919. It is smaller than $\alpha = 0.01$. We reject $H_0$ and conclude that $\beta_2 \ne 0$. The second-order term cannot be dropped from the model.
+
+### (c)
+```{r}
+# construct the cubic model
+model_cubic <- lm(sl ~ yd + I(yd^2) + I(yd^3), data = salary3)
+summary(model_cubic)
+```
+**Interpretation:** The estimated regression function is: $$\hat{Y} = 14681.0488 + 948.6676X_{1} - 17.6630{X_1}^2 + 0.0245{X_1}^3$$
+
+### (d)
+**Hypotheses:** $H_0: \beta_3 = 0$ VS. $H_A: \beta_3 \ne 0$
+```{r}
+# compare the two models (quadratic and cubic)
+model_quadratic <- lm(sl ~ yd + I(yd^2), data = salary3)
+model_cubic <- lm(sl ~ yd + I(yd^2) + I(yd^3), data = salary3)
+anova(model_quadratic, model_cubic)
+```
+**Interpretation:** The p-value of the cubic term is 0.9754. It is bigger than $\alpha = 0.01$. We fail to reject $H_0$ and conclude that $\beta_3$ can be 0. The third-order term can be dropped from the model.
+
+---
+
+## IV
+### (a)  
+**We will use the second-order model.**
+```{r}
+# use the centered data
+salary3 <- salary3 %>%
+  mutate(x1 = yd - mean(yd))
+
+# construct the centered the quadratic model
+model_centered <- lm(sl ~ x1 + I(x1^2), data = salary3)
+summary(model_centered)
+
+b1 <- coef(model_centered)["x1"]
+b2 <- coef(model_centered)["I(x1^2)"]
+
+# average change
+delta_Y <- 10 * b1 + 100 * b2
+delta_Y
+```
+**Interpretation:** The average change in salary is approximately 2390.15 dollars when years since degree increases by 10 units, based on the centered second-order model.
+
+### (b)
+**Answer:** The model in original units is: $$\hat{Y} = 14721.61 + 931.99X_{1} - 16.41{X_1}^2$$
+
+### (c)
+**Answer:** $$\Delta \hat{Y} = 10\beta_1 + 100\beta_2 = 10 \times 931.99 + 10^2 \times (-16.41) = 9319.9 - 1641 = 7678.9$$
+
+### (d)
+**Answer:** $$\hat{Y} = 14721.61 + 931.99 \times 4 - 16.41 \times 4^2 = 18187.01$$
+
+### (e)
+```{r}
+ggplot(salary3, aes(x = x1, y = sl)) +
+  geom_point(color = "black", alpha = 0.5) +  # original data points
+  geom_smooth(method = "lm", formula = y ~ x + I(x^2), se = FALSE, color = "red") +
+  labs(
+    title = "Quadratic Regression of Salary on Centered Years Since Degree",
+    x = "Centered Years Since Degree (x1)",
+    y = "3-Month Salary (sl)"
+  )
+```
+**Interpretation:** The centered estimated polynomial regression function diagram is shown above.
+
+---
+
+## V
+### (a)
+```{r}
+# construct the mixed model
+model_poly_rank <- lm(sl ~ yd + I(yd^2) + rk, data = salary3)
+summary(model_poly_rank)
+```
+**Interpretation:** The estimated regression function is: $$\hat{Y} = 16437.059 + 267.403X_{1} - 4.634{X_1}^2 + 3719.790X_{4, \text{associate}} + 9693.081X_{4, \text{full}}$$
+
+### (b)
+**Hypotheses:** $H_0: \beta_3 = \beta_4 = 0$ VS. $H_A: \text{At least one of }\beta_3 \text{ and } \beta_4 \ne 0$
+```{r}
+# full model with rk
+model_poly_rank <- lm(sl ~ yd + I(yd^2) + rk, data = salary3)
+# reduced model without rk
+model_poly <- lm(sl ~ yd + I(yd^2), data = salary3)
+# compare the two models
+anova(model_poly, model_poly_rank)
+```
+**Interpretation:** The F-statistic is 25.256 and the corresponding p-value is 3.56e-08. The p-value here is smaller than $\alpha = 0.01$. We reject $H_0$ and conclude $\text{at least one of }\beta_3 \text{ and } \beta_4 \ne 0$. The categorical variable should not be dropped from the model.
+
+### (c)
+**Hypotheses:** $H_0: \beta_5 = \beta_6 = \beta_7 = \beta_8 = 0$ VS. $H_A: \text{At least one of }\beta_5,  \beta_6, \beta_7 \text{ and } \beta_8 \ne 0$
+```{r}
+# model with interaction terms
+model_interact <- lm(sl ~ (yd + I(yd^2)) * rk, data = salary3)
+# model without interaction terms
+model_poly_rank <- lm(sl ~ yd + I(yd^2) + rk, data = salary3)
+# compare the two models
+anova(model_poly_rank, model_interact)
+```
+**Interpretation:** The F-statistic is 2.0742 and the corresponding p-value is 0.1008. The p-value here is greater than $\alpha = 0.01$. We fail to reject $H_0$ and we do not have evidence that any of the interaction terms $\beta_5, \beta_6, \beta_7, \text{and } \beta_8$ are nonzero. The interaction terms can be dropped from the model.
+
+### (d)
+**Answer:** $$\text{Subject 1: } \hat{Y}_{\text{assistant}} = 16437.059 + 267.403 \times 10 - 4.634 \times 10^2 = 18647.689$$ $$\text{Subject 2: } \hat{Y}_{\text{associate}} = 16437.059 + 267.403 \times 10 - 4.634 \times 10^2 + 3719.790 = 22367.479$$ $$\text{Subject 3: } \hat{Y}_{\text{full}} = 16437.059 + 267.403 \times 10 - 4.634 \times 10^2 + 9693.081 = 28340.77$$
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,208 @@
+---
+title: 'STA 108 Homework 2: R Part'
+author: "Yuan Xie"
+date: "2025-04-13"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,eval = TRUE)
+```
+
+## Import Environment and Dataset
+
+```{r}
+# import the tidyverse environment
+library(tidyverse)
+# import the csv files with read_csv()
+alcohol = read_csv("alcohol.csv")
+salary = read_csv("salary.csv")
+# briefly know the structures of the csv file by head()
+head(alcohol)
+head(salary)
+```
+
+---
+
+## I
+### (a)
+```{r}
+# plot the scatter with the estimated regression line
+alcohol %>% ggplot(aes(x = BrAC, y = BAC)) +
+  # plot the points; set the degree of transparency, size and color
+  geom_point(alpha = 0.7, size = 2, color = "black") +
+  # add the estimated regression line with a linear model
+  geom_smooth(method = "lm", formula = y ~ x, se = FALSE, color = "red") +
+  # set the x-axis, y-axis and title
+  labs(
+    x = "BrAC (mg/L/hour)",
+    y = "BAC (g/L/hour)",
+    title = "Scatterplot of BAC vs BrAC with Regression Line"
+  )
+```
+
+### (b)
+```{r}
+# construct the linear regression model
+model_alcohol <- lm(BAC ~ BrAC, data = alcohol)
+# summary() the model and the standard error of b1 will be shown
+summary(model_alcohol)
+```
+**Answer:** The value of $s\{b_1\}$ is 0.13200.
+
+### (c)
+```{r}
+# construct the linear regression model
+model_alcohol <- lm(BAC ~ BrAC, data = alcohol)
+# get the average estimated value of the slope
+b1_hat <- coef(model_alcohol)["BrAC"]
+# pick the value of the standard error of b1 out
+s_b1 <- summary(model_alcohol)$coefficients["BrAC", "Std. Error"]
+# pick the value of degrees of freedom out
+df_alcohol <- model_alcohol$df.residual
+# calculate the value of t
+t_alcohol <- qt(0.95, df_alcohol)
+
+# get the value of lower and upper bounds
+lower_bound <- b1_hat - t_alcohol * s_b1
+upper_bound <- b1_hat + t_alcohol * s_b1
+# show the lower and upper bounds in the form of a vector
+c(lower_bound, upper_bound)
+```
+
+**Answer:** The 90% confidence interval for the slope is (1.536925, 1.978349). We are 90% confident that when the BrAC increases by 1 mg/L/hour, the estimated change in BAC is between 1.536925 and 1.978349 g/L/hour on average.
+
+### (d)
+**Answer:** Yes. Since 0 is not included in the confidence interval and both the lower and upper bounds are positive, there is a significant positive linear relationship between BAC and BrAC.
+
+### (e)
+**Answer:** $s\{b_1\}$ here means when the BrAC increases by 1 mg/L/hour, the typical error of predicting the BAC caused by the regression line is 0.13200 g/L/hour.
+
+---
+
+## II
+### (a)
+```{r}
+# pick the t value of BrAC out
+summary(model_alcohol)$coefficients["BrAC", "t value"]
+```
+**Answer:** The test-statistic is 13.31518.
+
+### (b)
+```{r}
+# pick the p value of BrAC out
+summary(model_alcohol)$coefficients["BrAC", "Pr(>|t|)"]
+```
+**Answer:** The p-value is 3.8418e-19, which is almost 0.
+
+### (c)
+**Answer:** When alpha = 0.10, 3.8418e-19 < 0.10. We reject the null hypothesis H0. There is strong evidence to suggest that there is a linear relationship between BrAC and BAC.
+
+### (d)
+**Answer:** The conclusion will not change although alpha = 0.01 now because 3.8418e-19 is still much smaller than 0.01.
+
+---
+
+## III
+### (a)
+```{r}
+# plot the scatter with the estimated regression line
+salary %>% ggplot(aes(x = yd, y = sl)) +
+  # plot the points; set the degree of transparency, size and color
+  geom_point(alpha = 0.7, size = 2, color = "black") +
+  # add the estimated regression line with a linear model
+  geom_smooth(method = "lm", formula = y ~ x, se = FALSE, color = "red") +
+  # set the x-axis, y-axis and title
+  labs(
+    x = "Years Since Highest Degree (years)",
+    y = "Three-Month Salary (dollars)",
+    title = "Scatterplot of Salary vs Years with Regression Line"
+  )
+```
+
+### (b)
+```{r}
+# construct the linear regression model
+model_salary <- lm(sl ~ yd, data = salary)
+# get the average estimated value of the slope
+b1_hat <- coef(model_salary)["yd"]
+# pick the value of the standard error of b1 out
+s_b1 <- summary(model_salary)$coefficients["yd", "Std. Error"]
+# pick the value of degrees of freedom out
+df_salary <- model_salary$df.residual
+# calculate the value of t
+t_star <- qt(0.995, df_salary)
+
+# get the value of lower and upper bounds
+lower_bound <- b1_hat - t_star * s_b1
+upper_bound <- b1_hat + t_star * s_b1
+# show the lower and upper bounds in the form of a vector
+c(lower_bound, upper_bound)
+```
+**Answer:** The 99% confidence interval for the slope is (228.8773, 552.4129).
+
+### (c)
+**Answer:** We are 99% confident that when the number of years since earning the highest degree increases by 1, the estimated change in three month salary is between 228.8773 and 552.4129 dollars on average. 
+
+### (d)
+**Answer:** The estimated highest effect on salary when it increases by one year is 552.4129 dollars.
+
+---
+
+## IV
+### (a)
+```{r}
+# pick the t value of yd out
+summary(model_salary)$coefficients["yd", "t value"]
+```
+**Answer:** The test-statistic is 6.466471.
+
+### (b)
+```{r}
+# pick the p value of yd out
+summary(model_salary)$coefficients["yd", "Pr(>|t|)"]
+```
+**Answer:** The p-value is 4.101716e-08, which is almost 0.
+
+### (c)
+**Answer:** In reality, if the H0 is true, the probability of observing such or more extreme data is 4.101716e-08, which is almost zero. H0 is rejected.
+
+### (d)
+**Answer:** As the sample size increases, the standard error of the slope is expected to decrease and the t-distribution tends to become a Z-distribution. There will be less error and variability.
+
+### (e)
+**Answer:** As the standard error decreases, t-value will become larger. Therefore, p-value will become smaller.
+
+---
+
+## V
+### (a)
+```{r}
+new_data <- tibble(yd = 5)
+predict(model_salary, newdata = new_data, interval = "confidence", level = 0.95)
+```
+**Answer:** The 95% confidence interval for the average salary for a subject with 5 years of experience is (17631.21, 21279.76).
+
+### (b)
+**Answer:** We are 95% confident that for a subject with 5 years of experience, the estimated three-months salary is between 17631.21 and 21279.76 dollars. 
+
+### (c)
+```{r}
+new_data <- tibble(yd = 5)
+predict(model_salary, newdata = new_data, interval = "prediction", level = 0.95)
+```
+**Answer:** The 95% prediction interval for the average salary for a single professor with 5 years of experience is (10411.59, 28499.37).
+
+### (d)
+**Answer:** We are 95% confident that for a single professor with 5 years of experience, the actual three-months salary is between 10411.59 and 28499.37 dollars. 
+
+### (e)
+**Answer:** 28499.37 dollars.
+
+### (f)
+**Answer:** The prediction interval is wider than the confidence interval because it accounts for both the uncertainty in estimating the parameters and the noise of individual data.
+
+---
+
+
+

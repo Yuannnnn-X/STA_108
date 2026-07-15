@@ -1,0 +1,220 @@
+---
+title: 'STA 108 Homework 4: R Part'
+author: "Yuan Xie"
+date: "2025-05-04"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,eval = TRUE)
+```
+
+## Import Environment and Dataset
+
+```{r}
+# import the tidyverse environment
+library(tidyverse)
+# import the csv files with read_csv()
+salary = read_csv("salary.csv")
+salary2 = read_csv("salary2.csv")
+# briefly know the structures of the csv file by head()
+salary %>% head()
+salary2 %>% head()
+```
+
+---
+
+## I
+### (a)
+```{r}
+# create the linear model
+model_salary <- lm(sl ~ yd, data = salary)
+# compile the points in a tiny data frame
+new_points <- data.frame(yd = c(4, 6, 8))
+
+# set the alpha at 0.01, since 99%
+alpha <- 0.01
+k <- nrow(new_points)
+adjusted_alpha <- alpha / k
+df_resid <- df.residual(model_salary)
+t_crit <- qt(1 - (adjusted_alpha / 2), df = df_resid)
+sigma <- summary(model_salary)$sigma
+
+# predict these correspnding values
+pred_info <- predict(model_salary, newdata = new_points, se.fit = TRUE)
+fit <- pred_info$fit
+se <- pred_info$se.fit
+
+# calculate both the lower and upper boundaries
+lower <- fit - t_crit * sqrt(se^2 + sigma^2)
+upper <- fit + t_crit * sqrt(se^2 + sigma^2)
+
+result <- data.frame(
+  yd = new_points$yd,
+  fit = fit,
+  lower = lower,
+  upper = upper
+)
+
+print(result)
+```
+**Interpretation:** Here are the 3 simultaneous 99% prediction intervals for predictions of salary when X = 4, 6, 8.
+
+### (b)
+**Answer:** I used Bonferroni multiplier. Bonferroni multiplier is suitable for small and fixed numbers of confidence or prediction intervals. We have only 3 prediction intervals here.
+
+### (c)
+**Answer:** We are simultaneously 99% confident that the salary of an individual with 4 years of experience will be between 5155.028 and 32974.65 dollars.
+
+### (d)
+**Answer:** The intervals from (a) will widen because the value of $t_{1 - \frac{\alpha}{2g}}$ will become bigger as the number of prediction increases.
+
+---
+
+## II
+### (a)
+```{r}
+# change the degrees rto factors
+salary2$dg <- as.factor(salary2$dg)
+# create the multiple linear model
+model_salary2 <- lm(sl ~ yd + dg, data = salary2)
+# show the summary of coefficients
+summary(model_salary2)$coefficients
+```
+**Answer:** The estimated linear regression model is: $$\hat{Y} = b_0 + b_1 X_1 + b_2 X_2, \quad X_1 = \text{yd},\ X_2 = \text{master}$$ $$\hat{Y} = 17422.0056 + 483.9902 \cdot X_1 - 4113.8927 \cdot X_2$$
+
+### (b)
+**Answer:** When there is one more year since the subject earned their highest degree, the three month salary of the subject is expected to increase by 483.9902 on average, holding the highest degree the same.
+
+### (c)
+**Answer:** When an individual's highest degree is a master's degree, the three month salary of the subject is expected to be 4113.8927 dollars lower than that of another individual whose highest degree is a doctor degree on average, holding the number of years since the subject earned their highest degree constant.
+
+### (d)
+```{r}
+# compile the information of the subject into a small data frame
+new_subject <- data.frame(
+  yd = 8,
+  dg = factor("doctorate", levels = levels(salary2$dg)) 
+)
+# predict the subject
+predict(model_salary2, newdata = new_subject)
+```
+**Interpretation:**  The 3-month salary of a subject who has 8 years of experience and has earned their doctorate is predicted to be 21293.93 dollars.
+
+### (e)
+```{r}
+# get the confidence interval of beta_1
+confint(model_salary2, level = 0.95)["yd", ]
+```
+**Interpretation:** We are 95% confident that for each additional year since an individual earned their highest degree, the average increase in 3-month salary lies between 355.4200 and 612.5604 dollars, holding the highest degree type constant.
+
+---
+
+## III
+### (a)
+```{r}
+mult.fun = function(n,p,g,alpha){
+  bon = qt(1-alpha/(2*g), n-p)
+  WH = sqrt(p*qf(1-alpha,p,n-p))
+  Sch = sqrt(g*qf(1-alpha,g,n-p))
+  all.mul = c(bon,WH,Sch)
+  all.mul = round(all.mul,3)
+  names(all.mul) = c("Bon","WH","Sch")
+  return(all.mul)
+}
+
+mult.CI = function(C.star,x.stars,the.model,alpha,the.type = "confidence"){
+  all.preds = predict(the.model,x.stars)
+  if(the.type == "confidence"){
+    all.se = predict(the.model,x.stars,interval = the.type,se.fit = TRUE)$se.fit
+  } else if(the.type == "prediction"){
+    all.se = predict(the.model,x.stars,interval = the.type,se.fit = TRUE)$se.fit
+    MSE = sum(the.model$residuals^2)/(length(the.model$residuals) - length(the.model$coefficients))
+    all.se = sqrt(all.se^2 + MSE)
+  }
+  LB = all.preds - C.star*all.se
+  UB = all.preds + C.star*all.se
+  all.CIs = cbind(LB,UB)
+  colnames(all.CIs) = paste((1-alpha)*100, "%",c(" Lower"," Upper"), sep = "")
+  results = cbind(all.preds,all.CIs)
+  colnames(results)[1] = "Estimate"
+  return(results)
+}
+
+# Bonferroni multiplier
+df_resid <- df.residual(model_salary2)
+t_crit <- qt(1 - 0.05 / (2 * 2), df = df_resid)  # 0.9875
+
+# plug the coefficients and according standard errors
+coefs <- summary(model_salary2)$coefficients
+b1 <- coefs["yd", "Estimate"]
+se1 <- coefs["yd", "Std. Error"]
+b2 <- coefs["dgmasters", "Estimate"]
+se2 <- coefs["dgmasters", "Std. Error"]
+
+# make Bonferroni confidence interval
+ci_b1 <- c(b1 - t_crit * se1, b1 + t_crit * se1)
+ci_b2 <- c(b2 - t_crit * se2, b2 + t_crit * se2)
+
+# output
+bonferroni_ci <- data.frame(
+  Parameter = c("beta1 (yd)", "beta2 (dgmasters)"),
+  Lower = c(ci_b1[1], ci_b2[1]),
+  Upper = c(ci_b1[2], ci_b2[2])
+)
+
+print(bonferroni_ci)
+```
+**Interpretation:** The simultaneous 95% confidence intervals for $\beta_1$ is (336.0472, 631.9332) and that for $\beta_2$ is (-7262.0450, -965.7403) with Bonferroni’s multiplier.
+
+### (b)
+**Answer:** According to the Bonferroni’s 95% confidence interval in part (a),  the largest average change in 3-month salary for subjects with a doctorate compared to a masters is 7262.0450 dollars, holding years of experience constant. It is just the lower bound of $\beta_2$, -7262.0450.
+
+### (c)
+```{r}
+xs2 <- data.frame(
+  yd = c(4, 8),
+  dg = factor(c("masters", "doctorate"), levels = levels(salary2$dg))
+)
+
+# calculate multipliers
+Mul <- mult.fun(n = nrow(salary2), p = length(coef(model_salary2)), g = 2, alpha = 0.10)
+
+# extract Scheffe multiplier
+C_star <- Mul["Sch"]
+
+# make simultaneous 90% prediction intervals
+scheffe_results <- mult.CI(C.star = C_star, x.stars = xs2, the.model = model_salary2,
+                           alpha = 0.10, the.type = "prediction")
+
+# show the results
+print(scheffe_results)
+```
+**Interpretation:** The simultaneous 90%  prediction intervals for (4, masters) is (5639.885, 24848.26) and for (8, doctorate) is (12154.334, 30433.52).
+
+### (d)
+```{r}
+# Subject 1: 5 years, masters
+xs3 <- data.frame(yd = 5, dg = factor("masters", levels = levels(salary2$dg)))
+keep <- mult.fun(nrow(salary2), length(coef(model_salary2)), 2, 0.10)[1]
+ci1 <- mult.CI(keep, xs3, model_salary2, 0.10, "confidence")
+
+# Subject 2: 2 years, doctorate
+xs4 <- data.frame(yd = 2, dg = factor("doctorate", levels = levels(salary2$dg)))
+ci2 <- mult.CI(keep, xs4, model_salary2, 0.10, "confidence")
+
+ci1
+ci2
+```
+**Answer:** The smallest expected difference in salaries in value for these two subjects is actually 0 dollar because the two intervals are partially overlapped.
+
+
+
+
+
+
+
+
+
+
+
